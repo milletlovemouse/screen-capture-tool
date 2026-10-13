@@ -13,37 +13,27 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        env:
-          HOME: ${{ runner.temp }}/home
-          PNPM_HOME: ${{ runner.temp }}/pnpm
-        with:
-          version: 10
-          dest: ${{ runner.temp }}/setup-pnpm
-          standalone: true
-      - uses: actions/setup-node@v4
-        env:
-          HOME: ${{ runner.temp }}/home
-          PNPM_HOME: ${{ runner.temp }}/pnpm
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
+      - name: Install pnpm
+        run: npm install --global pnpm@10
+        env:
+          HOME: ${{ runner.temp }}/home
+          npm_config_cache: ${{ runner.temp }}/npm-cache
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - run: pnpm install --frozen-lockfile --registry https://registry.npmjs.org
         env:
           HOME: ${{ runner.temp }}/home
-          PNPM_HOME: ${{ runner.temp }}/pnpm
       - run: pnpm test
         env:
           HOME: ${{ runner.temp }}/home
-          PNPM_HOME: ${{ runner.temp }}/pnpm
       - run: pnpm build
         env:
           HOME: ${{ runner.temp }}/home
-          PNPM_HOME: ${{ runner.temp }}/pnpm
       - name: Install Windows resource compiler
         if: runner.os == 'Windows'
         shell: pwsh
@@ -63,12 +53,10 @@ jobs:
         run: pnpm tauri build --bundles nsis
         env:
           HOME: ${{ runner.temp }}/home
-          PNPM_HOME: ${{ runner.temp }}/pnpm
       - if: runner.os == 'macOS'
         run: pnpm tauri build --bundles app
         env:
           HOME: ${{ runner.temp }}/home
-          PNPM_HOME: ${{ runner.temp }}/pnpm
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ runner.os }}
