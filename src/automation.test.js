@@ -6,8 +6,8 @@ import { shortcutText } from "./platform.js";
 
 // 隔离原生调用，验证真实执行逻辑的次数、顺序和取消行为。
 const source = (await readFile(new URL("./main.js", import.meta.url), "utf8"))
-  .replace(/^import[\s\S]*?;\n/gm, "")
-  .replace(/\ninit\(\);\s*$/, "");
+  .replace(/^import[\s\S]*?;\r?\n/gm, "")
+  .replace(/\r?\ninit\(\);\s*$/, "");
 
 function harness(isMac = true) {
   const calls = [];

@@ -3,6 +3,9 @@
   "bundle": {
     "targets": ["nsis"],
     "windows": {
+      "nsis": {
+        "compression": "lzma"
+      },
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
         "silent": true
