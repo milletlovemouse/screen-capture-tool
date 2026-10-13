@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>框选区域</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body class="overlay-body">
+    <div id="tip" class="overlay-tip">拖拽鼠标框选区域，Esc 取消</div>
+    <div id="selection" class="overlay-selection"></div>
+    <div id="size-label" class="overlay-size"></div>
+    <div id="virtual-pointer" class="overlay-virtual-pointer" aria-hidden="true"></div>
+    <canvas id="loupe" class="overlay-loupe" width="150" height="150"></canvas>
+    <div id="loupe-info" class="overlay-loupe-info"></div>
+    <script type="module" src="/src/overlay.js"></script>
+  </body>
+</html>

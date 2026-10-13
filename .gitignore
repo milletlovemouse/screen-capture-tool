@@ -1,0 +1,7 @@
+node_modules
+dist
+.pnpm
+src-tauri/target
+src-tauri/gen
+checks
+.DS_Store

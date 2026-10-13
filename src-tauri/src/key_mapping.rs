@@ -1,0 +1,91 @@
+// 保存格式沿用历史 macOS 键码；Windows 转为物理扫描码，旧脚本无需迁移。
+#[cfg(any(target_os = "windows", test))]
+pub fn windows_scan(key: u16) -> Option<u16> {
+    Some(match key {
+        0 => 0x1e,
+        1 => 0x1f,
+        2 => 0x20,
+        3 => 0x21,
+        4 => 0x23,
+        5 => 0x22,
+        6 => 0x2c,
+        7 => 0x2d,
+        8 => 0x2e,
+        9 => 0x2f,
+        11 => 0x30,
+        12 => 0x10,
+        13 => 0x11,
+        14 => 0x12,
+        15 => 0x13,
+        16 => 0x15,
+        17 => 0x14,
+        18 => 0x02,
+        19 => 0x03,
+        20 => 0x04,
+        21 => 0x05,
+        22 => 0x07,
+        23 => 0x06,
+        24 => 0x0d,
+        25 => 0x0a,
+        26 => 0x08,
+        27 => 0x0c,
+        28 => 0x09,
+        29 => 0x0b,
+        30 => 0x1b,
+        31 => 0x18,
+        32 => 0x16,
+        33 => 0x1a,
+        34 => 0x17,
+        35 => 0x19,
+        36 => 0x1c,
+        37 => 0x26,
+        38 => 0x24,
+        39 => 0x28,
+        40 => 0x25,
+        41 => 0x27,
+        42 => 0x2b,
+        43 => 0x33,
+        44 => 0x35,
+        45 => 0x31,
+        46 => 0x32,
+        47 => 0x34,
+        48 => 0x0f,
+        49 => 0x39,
+        50 => 0x29,
+        51 => 0x0e,
+        53 => 0x01,
+        117 => 0xe053,
+        115 => 0xe047,
+        119 => 0xe04f,
+        116 => 0xe049,
+        121 => 0xe051,
+        123 => 0xe04b,
+        124 => 0xe04d,
+        125 => 0xe050,
+        126 => 0xe048,
+        122 => 0x3b,
+        120 => 0x3c,
+        99 => 0x3d,
+        118 => 0x3e,
+        96 => 0x3f,
+        97 => 0x40,
+        98 => 0x41,
+        100 => 0x42,
+        101 => 0x43,
+        109 => 0x44,
+        103 => 0x57,
+        111 => 0x58,
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn legacy_keys_include_punctuation_and_extended_keys() {
+        assert_eq!(super::windows_scan(0), Some(0x1e));
+        assert_eq!(super::windows_scan(42), Some(0x2b));
+        assert_eq!(super::windows_scan(123), Some(0xe04b));
+        assert_eq!(super::windows_scan(65535), None);
+    }
+}

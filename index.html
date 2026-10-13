@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>截图工具</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <span class="brand">
+            <span class="brand-logo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </span>
+            <span class="brand-text">截图工具</span>
+          </span>
+          <button id="toggle-sidebar" type="button" class="icon-btn" title="收起/展开菜单">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active" type="button" data-view="home" title="首页">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V9.5"/></svg>
+            <span class="nav-text">首页</span>
+          </button>
+          <button class="nav-item" type="button" data-view="settings" title="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span class="nav-text">设置</span>
+          </button>
+          <button class="nav-item" type="button" data-view="automation" title="自动化">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/><path d="M10 7h4M7 10v4M17 10v4M10 17h4"/></svg>
+            <span class="nav-text">自动化</span>
+          </button>
+          <button id="pin-toggle" class="nav-item pin-item" type="button" title="钉在最上层">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 3h6l-1 7 3 2v2H7v-2l3-2z"/></svg>
+            <span class="nav-text">钉在最上层</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section id="view-home" class="view">
+          <div class="home-actions">
+            <button id="capture-now" type="button" class="action-card primary">
+              <span class="action-card-top">
+              <span class="action-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </span>
+              <kbd id="home-capture-shortcut" class="home-shortcut" hidden></kbd>
+              </span>
+              <span class="action-title">立即截图</span>
+              <span class="action-desc">按预设区域保存</span>
+            </button>
+            <button id="record-toggle" type="button" class="action-card rec-btn">
+              <span class="action-card-top">
+              <span class="action-icon">
+                <span class="rec-dot"></span>
+              </span>
+              <kbd id="home-record-shortcut" class="home-shortcut" hidden></kbd>
+              </span>
+              <span id="rec-label" class="action-title">开始录屏</span>
+              <span class="action-desc">录制预设区域</span>
+            </button>
+          </div>
+
+          <div class="card region-card">
+            <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/></svg>
+              <h3>选区</h3>
+            </div>
+            <div class="row">
+              <button id="pick-region" type="button" class="btn-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+                框选区域
+              </button>
+              <button id="use-fullscreen" type="button" class="ghost btn-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+                使用全屏
+              </button>
+              <button id="toggle-indicator" type="button" class="ghost btn-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="2.5"/></svg>
+                显示/隐藏选区框
+              </button>
+            </div>
+            <p class="hint">靠近边框可拖动调整大小，拖动尺寸标签可移动选区；调整中按 Esc 撤销。</p>
+            <p class="hint">在主窗口按 Esc 可清空选区。</p>
+          </div>
+
+          <div class="card home-automation-card">
+            <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/><path d="M10 7h4M7 10v4M17 10v4M10 17h4"/></svg>
+              <h3>自动化脚本</h3>
+            </div>
+            <div id="home-automation-list" class="automation-home-list"></div>
+          </div>
+        </section>
+
+        <section id="view-settings" class="view hidden">
+          <h2>设置</h2>
+
+          <div class="card" id="permission-card">
+            <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+              <h3>系统权限</h3>
+              <button id="perm-refresh" type="button" class="ghost btn-icon">重新检查</button>
+            </div>
+            <div class="permission-row" data-perm="screen">
+              <div class="permission-info">
+                <span class="permission-name">屏幕录制</span>
+                <span class="permission-desc">截图与录屏需要此权限</span>
+              </div>
+              <span class="permission-status" id="perm-screen-status">检查中…</span>
+              <button id="perm-screen-btn" type="button" class="ghost">请求权限</button>
+            </div>
+            <div class="permission-row" data-perm="accessibility">
+              <div class="permission-info">
+                <span class="permission-name">辅助功能（设备控制）</span>
+                <span class="permission-desc">自动化的模拟点击与键盘输入需要此权限</span>
+              </div>
+              <span class="permission-status" id="perm-accessibility-status">检查中…</span>
+              <button id="perm-accessibility-btn" type="button" class="ghost">请求权限</button>
+            </div>
+            <div class="permission-row" data-perm="notification">
+              <div class="permission-info">
+                <span class="permission-name">通知</span>
+                <span class="permission-desc">截图、录屏与自动化完成后的提醒需要此权限</span>
+              </div>
+              <span class="permission-status" id="perm-notification-status">检查中…</span>
+              <button id="perm-notification-btn" type="button" class="ghost">请求权限</button>
+            </div>
+            <p class="hint" id="permission-hint" hidden></p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+              <h3>保存设置</h3>
+            </div>
+            <div class="form-row">
+              <label class="block field-prefix">文件名称
+                <input id="prefix" type="text" value="screenshot" />
+              </label>
+              <label class="block field-dir">保存目录
+                <div class="row">
+                  <input id="dir" type="text" placeholder="点击右侧按钮选择目录" readonly />
+                  <button id="pick-dir" type="button" class="ghost">选择</button>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6"/></svg>
+              <h3>快捷键</h3>
+            </div>
+            <label class="block">截图快捷键
+              <div class="row">
+                <input id="shortcut" type="text" value="CommandOrControl+Shift+S" readonly />
+                <button id="record-shortcut" type="button" class="ghost btn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/></svg>
+                  录制
+                </button>
+              </div>
+            </label>
+            <label class="block">录屏开始/结束快捷键
+              <div class="row">
+                <input id="shortcut-record" type="text" value="CommandOrControl+Shift+R" readonly />
+                <button id="record-shortcut-rec" type="button" class="ghost btn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/></svg>
+                  录制
+                </button>
+              </div>
+            </label>
+            <p class="hint">点击“录制”后直接按下组合键自动填入并注册，Esc 取消。录屏快捷键按一次开始、再按一次结束。</p>
+          </div>
+        </section>
+
+        <section id="view-automation" class="view hidden">
+          <div class="view-title-row">
+            <h2>自动化</h2>
+            <button id="add-automation" type="button" class="btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              新建脚本
+            </button>
+          </div>
+
+          <div id="automation-list" class="automation-list"></div>
+
+          <div id="automation-editor" class="card automation-editor hidden">
+            <div class="card-head automation-editor-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/><path d="M10 7h4M7 10v4M17 10v4M10 17h4"/></svg>
+              <h3>脚本编辑</h3>
+              <span id="automation-editor-name" class="editor-name"></span>
+              <span id="automation-editor-status" class="editor-status"></span>
+            </div>
+
+            <div class="automation-editor-section">
+              <div class="automation-basic-fields">
+                <label>脚本名称
+                  <input id="automation-name" type="text" placeholder="例如：每日截图" />
+                </label>
+                <label>开始 / 停止快捷键
+                  <div class="row">
+                    <input id="automation-shortcut" type="text" readonly placeholder="点击录制后按组合键" />
+                    <button id="record-automation-shortcut" type="button" class="ghost btn-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/></svg>
+                      录制
+                    </button>
+                  </div>
+                </label>
+              </div>
+              <p class="hint editor-shortcut-hint">按一次开始，再按一次停止。录制后保存生效，Esc 取消录制。</p>
+            </div>
+
+            <div class="automation-editor-section automation-flow-section">
+              <div class="automation-steps-head">
+                <h3>步骤流程</h3>
+                <span id="automation-step-count" class="automation-count-badge">0 个步骤</span>
+              </div>
+              <p class="hint">添加动作后，在节点中设置参数，脚本将从上到下依次执行。</p>
+              <div class="automation-add-buttons">
+                <button id="add-click-step" type="button" class="ghost btn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg>
+                  模拟点击<span class="step-add-mark" aria-hidden="true">＋</span>
+                </button>
+                <button id="add-keys-step" type="button" class="ghost btn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>
+                  键盘输入<span class="step-add-mark" aria-hidden="true">＋</span>
+                </button>
+                <button id="add-wait-step" type="button" class="ghost btn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                  等待<span class="step-add-mark" aria-hidden="true">＋</span>
+                </button>
+                <button id="add-capture-step" type="button" class="ghost btn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg>
+                  截图<span class="step-add-mark" aria-hidden="true">＋</span>
+                </button>
+                <button id="add-record-step" type="button" class="ghost btn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="m15 10 6-3v10l-6-3"/></svg>
+                  录制<span class="step-add-mark" aria-hidden="true">＋</span>
+                </button>
+              </div>
+              <div id="automation-steps" class="automation-steps"></div>
+            </div>
+
+            <div class="automation-editor-actions">
+              <button id="cancel-automation" type="button" class="ghost">取消</button>
+              <button id="save-automation" type="button">保存脚本</button>
+            </div>
+          </div>
+        </section>
+
+        <div class="status">
+          <span id="status" class="status-text">就绪</span>
+        </div>
+
+        <!-- 预设区域坐标：不在界面显示，仅用于保存与联动 -->
+        <input id="x" type="hidden" value="0" />
+        <input id="y" type="hidden" value="0" />
+        <input id="w" type="hidden" value="800" />
+        <input id="h" type="hidden" value="600" />
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
