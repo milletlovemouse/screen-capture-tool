@@ -21,6 +21,7 @@ jobs:
         with:
           version: 10
           dest: ${{ runner.temp }}/setup-pnpm
+          standalone: true
       - uses: actions/setup-node@v4
         env:
           HOME: ${{ runner.temp }}/home
@@ -43,6 +44,18 @@ jobs:
         env:
           HOME: ${{ runner.temp }}/home
           PNPM_HOME: ${{ runner.temp }}/pnpm
+      - name: Install Windows resource compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command llvm-rc -ErrorAction SilentlyContinue)) {
+            choco install llvm --yes --no-progress
+          }
+          $llvmBin = Join-Path $env:ProgramFiles "LLVM\bin"
+          if (-not (Test-Path (Join-Path $llvmBin "llvm-rc.exe"))) {
+            throw "llvm-rc.exe was not found in $llvmBin"
+          }
+          $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
