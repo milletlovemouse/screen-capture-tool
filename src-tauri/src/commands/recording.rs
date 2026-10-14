@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use crate::commands::files::{sanitize_file_stem, unique_path};
-use crate::screen::{capture_coordinates, pick_monitor};
 #[cfg(target_os = "macos")]
 use crate::platform::macos_ffi::CGPreflightScreenCaptureAccess;
 #[cfg(target_os = "windows")]
 use crate::platform::windows_recording;
+use crate::screen::{capture_coordinates, pick_monitor};
 
 pub enum RecordingProcess {
     #[cfg(target_os = "macos")]

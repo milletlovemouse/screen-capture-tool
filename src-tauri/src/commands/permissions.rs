@@ -89,10 +89,13 @@ pub fn open_privacy_settings(section: String) -> Result<(), String> {
             }
             _ => return Err("未知的权限面板".into()),
         };
-        std::process::Command::new("open")
+        let status = std::process::Command::new("open")
             .arg(url)
             .status()
             .map_err(|e| format!("打开系统设置失败: {e}"))?;
+        if !status.success() {
+            return Err("系统设置未能打开".into());
+        }
         Ok(())
     }
 

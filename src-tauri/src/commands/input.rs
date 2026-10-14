@@ -2,9 +2,9 @@
 #[cfg(target_os = "macos")]
 use crate::platform::macos_ffi::*;
 #[cfg(target_os = "windows")]
-use crate::screen::{capture_scale, pick_monitor};
-#[cfg(target_os = "windows")]
 use crate::platform::windows_input;
+#[cfg(target_os = "windows")]
+use crate::screen::{capture_scale, pick_monitor};
 
 /// 单个模拟按键：平台相关键码、修饰键标志位和物理键位。
 #[derive(serde::Deserialize)]
