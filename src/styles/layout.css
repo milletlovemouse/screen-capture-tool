@@ -1,0 +1,190 @@
+/* 左菜单 + 右内容 布局 */
+.layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 160px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #191a1f, #141519);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 18px;
+  transition: width 0.15s ease;
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.icon-btn:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: rgba(79, 140, 255, 0.1);
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  /* 高度不足时内部滚动，避免置顶按钮被裁掉 */
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.nav-item:hover {
+  background: #23252c;
+  color: var(--fg);
+}
+
+.nav-item.active {
+  background: rgba(79, 140, 255, 0.14);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* 选中项左侧高亮条 */
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 56%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* 置顶按钮推到底部，上方加分隔线 */
+.pin-item {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding-top: 14px;
+}
+
+.pin-item.active {
+  background: transparent;
+  color: var(--accent);
+}
+
+.pin-item.active::before {
+  content: none;
+}
+
+/* 收起状态：仅显示图标 */
+.layout.collapsed .sidebar {
+  width: 60px;
+  padding: 16px 8px;
+}
+
+.layout.collapsed .brand,
+.layout.collapsed .nav-text {
+  display: none;
+}
+
+.layout.collapsed .sidebar-top {
+  justify-content: center;
+}
+
+.layout.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.layout.collapsed .nav-item.active::before {
+  display: none;
+}
+
+.layout.collapsed .pin-item {
+  padding-top: 14px;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+

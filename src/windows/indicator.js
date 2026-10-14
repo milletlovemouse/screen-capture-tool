@@ -1,7 +1,7 @@
 import { listen, emitTo } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
-import { regionHit, adjustRegion } from "./region-geometry";
+import { regionHit, adjustRegion } from "../shared/region-geometry";
 
 const self = getCurrentWindow();
 const box = document.querySelector(".indicator-box");

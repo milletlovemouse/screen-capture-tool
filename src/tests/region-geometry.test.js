@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { regionHit, adjustRegion } from "./region-geometry.js";
+import { regionHit, adjustRegion } from "../shared/region-geometry.js";
 
 const region = { x: 100, y: 100, width: 200, height: 150 };
 const bounds = { width: 800, height: 600 };

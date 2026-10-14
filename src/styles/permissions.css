@@ -1,0 +1,98 @@
+/* 设置卡片更有层次 */
+.card {
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.card:hover {
+  border-color: #45474f;
+}
+
+/* 系统权限设置项 */
+#permission-card .card-head button {
+  margin-left: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.permission-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid #33353e;
+}
+
+.permission-row:first-of-type {
+  border-top: none;
+}
+
+.permission-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.permission-name {
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.permission-desc {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.permission-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.permission-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #747b8c;
+}
+
+.permission-status.granted {
+  color: #67c99a;
+}
+
+.permission-status.granted::before {
+  background: #46c17b;
+}
+
+.permission-status.denied {
+  color: #f0a84f;
+}
+
+.permission-status.denied::before {
+  background: #ff9f43;
+}
+
+.permission-row button {
+  flex-shrink: 0;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+.permission-row.is-granted button {
+  display: none;
+}
+
+#permission-hint {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(240, 168, 79, 0.12);
+  color: #f0b968;
+  line-height: 1.6;
+}
+

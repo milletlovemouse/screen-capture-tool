@@ -1,0 +1,151 @@
+
+/* 只读输入框（目录/快捷键）样式区分 */
+input[readonly] {
+  cursor: default;
+  background: #16171b;
+}
+
+#shortcut {
+  font-family: monospace;
+  letter-spacing: 0.3px;
+  color: var(--fg);
+}
+
+
+h1 {
+  font-size: 20px;
+  margin: 4px 0 16px;
+}
+
+h2 {
+  font-size: 14px;
+  margin: 0 0 10px;
+  color: var(--fg);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.grid.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 统一 label 文本与其控件（含包裹在 .row 里的控件）的间隔，均为上面的 gap */
+label > .row {
+  margin-top: 0;
+}
+
+label.block {
+  margin-bottom: 10px;
+}
+
+input {
+  background: #1b1c21;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  padding: 7px 8px;
+  font-size: 13px;
+  width: 100%;
+}
+
+select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #1b1c21;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.row input {
+  flex: 1;
+}
+
+/* 表单一行多列（标签顶部对齐，比例可控） */
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.form-row .block {
+  margin-bottom: 0;
+}
+
+/* 让“选择”按钮与输入框等高，保证两列输入框对齐 */
+.form-row .row button {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.field-prefix {
+  flex: 1;
+}
+
+.field-dir {
+  flex: 2;
+}
+
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+
+button:hover {
+  opacity: 0.9;
+}

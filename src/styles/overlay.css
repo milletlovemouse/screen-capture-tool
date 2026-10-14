@@ -1,0 +1,142 @@
+/* 框选覆盖窗 */
+.overlay-body {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  cursor: crosshair;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* 框选时整个覆盖层统一十字光标 */
+.overlay-body,
+.overlay-body * {
+  cursor: crosshair !important;
+}
+
+.overlay-tip {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: -apple-system, sans-serif;
+  z-index: 10;
+}
+
+.overlay-selection {
+  position: fixed;
+  border: 1px solid var(--accent);
+  background: rgba(79, 140, 255, 0.15);
+  display: none;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.overlay-size {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+  display: none;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* 方向键移动的虚拟指针，避免尝试改变系统真实鼠标位置 */
+.overlay-virtual-pointer {
+  position: fixed;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  display: none;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.overlay-virtual-pointer::before,
+.overlay-virtual-pointer::after {
+  content: "";
+  position: absolute;
+  background: #ff3030;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.overlay-virtual-pointer::before {
+  top: 8px;
+  left: 0;
+  width: 18px;
+  height: 2px;
+}
+
+.overlay-virtual-pointer::after {
+  top: 0;
+  left: 8px;
+  width: 2px;
+  height: 18px;
+}
+
+/* 指针处放大镜 */
+.overlay-loupe {
+  position: fixed;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  image-rendering: pixelated;
+  pointer-events: none;
+  display: none;
+  z-index: 20;
+}
+
+.overlay-loupe-info {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 12px;
+  font-family: monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  display: none;
+  z-index: 20;
+  white-space: nowrap;
+}
+
+/* 自动化节点取点覆盖窗 */
+.point-picker-body {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  cursor: crosshair;
+  overflow: hidden;
+  user-select: none;
+}
+
+.point-picker-body,
+.point-picker-body * {
+  cursor: crosshair !important;
+}
+
+.point-picker-tip {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.68);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+}

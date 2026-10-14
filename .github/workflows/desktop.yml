@@ -60,9 +60,34 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - if: matrix.platform == 'windows'
-        run: pnpm tauri build --target ${{ matrix.target }}
+        shell: bash
+        run: |
+          args=(--target "${{ matrix.target }}")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            args+=(--config src-tauri/tauri.release.conf.json)
+            args+=(--config "{\"version\":\"${GITHUB_REF_NAME#v}\"}")
+          fi
+          pnpm tauri build "${args[@]}"
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - if: matrix.platform == 'macos'
-        run: pnpm tauri build --target ${{ matrix.target }}
+        shell: bash
+        run: |
+          args=(--target "${{ matrix.target }}")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            args+=(--config src-tauri/tauri.release.conf.json)
+            args+=(--config "{\"version\":\"${GITHUB_REF_NAME#v}\"}")
+          fi
+          pnpm tauri build "${args[@]}"
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Verify macOS app signature
+        if: matrix.platform == 'macos'
+        run: |
+          codesign --verify --deep --strict --verbose=2 \
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/ScreenCaptureTool.app
       - name: Package macOS app
         if: matrix.platform == 'macos'
         run: |
@@ -86,6 +111,73 @@ jobs:
           pattern: desktop-*
           path: release-assets
           merge-multiple: false
+      - name: Generate updater manifest
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          root = Path("release-assets")
+          publish = root / "publish"
+          publish.mkdir(parents=True, exist_ok=True)
+          mapping = {
+              "desktop-macos-arm64": "darwin-aarch64",
+              "desktop-macos-x64": "darwin-x86_64",
+              "desktop-windows-arm64": "windows-aarch64",
+              "desktop-windows-x64": "windows-x86_64",
+          }
+          platforms = {}
+          tag = os.environ["RELEASE_TAG"]
+          repository = os.environ["REPOSITORY"]
+
+          for signature in root.glob("desktop-*/**/*.sig"):
+              artifact = Path(str(signature)[:-4])
+              group = next((part for part in signature.parts if part in mapping), None)
+              if not group or not artifact.exists():
+                  continue
+              target = mapping[group]
+              name = artifact.name
+              if target in platforms and ".nsis.zip" not in name:
+                  continue
+              for extension in (".app.tar.gz", ".nsis.zip", ".msi.zip"):
+                  if name.endswith(extension):
+                      name = f"{name[:-len(extension)]}-{target}{extension}"
+                      break
+              else:
+                  name = f"{name}-{target}"
+              published_artifact = publish / name
+              published_signature = publish / f"{name}.sig"
+              shutil.copy2(artifact, published_artifact)
+              shutil.copy2(signature, published_signature)
+              platforms[target] = {
+                  "signature": signature.read_text().strip(),
+                  "url": (
+                      f"https://github.com/{repository}/releases/download/"
+                      f"{tag}/{name}"
+                  ),
+              }
+
+          if not platforms:
+              raise SystemExit("No signed updater artifacts were found")
+          (root / "latest.json").write_text(
+              json.dumps(
+                  {
+                      "version": tag.removeprefix("v"),
+                      "notes": f"ScreenCaptureTool {tag}",
+                      "platforms": platforms,
+                  },
+                  ensure_ascii=False,
+                  indent=2,
+              )
+              + "\n"
+          )
+          PY
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -97,3 +189,6 @@ jobs:
             release-assets/**/*.exe
             release-assets/**/*.dmg
             release-assets/**/*.msi
+            release-assets/**/latest.json
+            release-assets/**/*.sig
+            release-assets/**/*.tar.gz

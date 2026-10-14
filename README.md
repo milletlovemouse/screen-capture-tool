@@ -1,75 +1,130 @@
-# 截图工具
+<div align="center">
+  <img src="./app-icon.png" alt="截图工具 Logo" width="128" height="128">
+  <h1>截图工具</h1>
+  <p>一款简单、快速、跨平台的桌面截图、录屏与自动化工具。</p>
+  <p>
+    <img src="https://img.shields.io/badge/macOS-supported-111827?logo=apple&logoColor=white" alt="macOS">
+    <img src="https://img.shields.io/badge/Windows-supported-2563eb?logo=windows&logoColor=white" alt="Windows">
+    <img src="https://img.shields.io/badge/Tauri-2.x-ffc131?logo=tauri&logoColor=black" alt="Tauri 2">
+  </p>
+</div>
 
-Tauri 2 桌面区域截图、录屏和自动化工具。前端使用 Vite、原生 JavaScript 与 pnpm。
+截图工具面向日常截图、录屏和重复性桌面操作场景，提供从区域选择、内容保存到自动化执行的一体化体验。它支持 macOS 和 Windows，可在后台通过系统托盘或菜单栏快速唤起。
 
-## 平台能力
+## 功能
 
-| 能力 | macOS | Windows |
-| --- | --- | --- |
-| 主屏区域截图、放大镜、选区调整 | xcap / CoreGraphics | xcap，逻辑坐标转物理像素 |
-| 鼠标取点与模拟点击 | CoreGraphics | GetCursorPos / SendInput |
-| 按键序列 | CGEvent | SendInput 扫描码，含扩展键和修饰键 |
-| 录屏 | 系统 screencapture，MOV | Windows Graphics Capture + 系统 H.264 编码，MP4 |
-| 保存通知定位文件 | Finder | 资源管理器 |
-| 脚本编辑、复制、拖动排序、循环/指定次数 | 支持 | 支持 |
-| 全局快捷键、托盘、窗口置顶 | 支持 | 支持；跨虚拟桌面置顶由系统限制 |
+- 区域截图：框选截图区域，使用放大镜精确定位，并可拖动边框调整选区。
+- 常驻选区：保存一个常用区域，在屏幕上显示选区指示框。
+- 录屏：录制当前选区或主屏画面。macOS 输出 MOV，Windows 输出 MP4。
+- 自动化：按顺序执行模拟点击、键盘输入、等待、截图和录屏，可拖动步骤排序、复制脚本，并设置循环次数。
+- 快捷操作：支持全局截图快捷键、录屏快捷键和自动化脚本快捷键。
+- 文件管理：自定义保存目录、文件名前缀和自增编号。
+- 系统集成：支持系统托盘、窗口置顶，以及保存完成后定位文件。
 
-Windows 录屏目标为 Windows 10 1903 及以上、Windows 11，需要系统媒体编码组件和支持捕获的显卡驱动；不需要额外安装 FFmpeg。Windows N 版本可能需要系统的 Media Feature Pack。macOS 需要授予屏幕录制、辅助功能权限。窗口前端使用系统 WebView，Windows 安装器会引导安装 WebView2。
+## 使用方式
 
-保持现有产品范围：框选、截图、录屏针对主显示器，尚未提供显示器选择或跨显示器选区。录屏不采集麦克风/系统音频。H.264 要求偶数尺寸，Windows 录屏会向内裁掉最多一像素。按键存储兼容历史脚本，Windows 将历史键码转换为物理扫描码；Command 修饰键在 Windows 对应 Win 键，Ctrl 保持 Ctrl。
+### 截图
 
-Windows 模拟输入受系统权限隔离约束，普通权限工具不能控制管理员窗口或 UAC 安全桌面。不要为普通使用默认提权。
+1. 打开应用，点击「选择区域」。
+2. 在屏幕上拖动鼠标框选需要截图的区域。
+3. 点击「立即截图」，图片会保存到设置的目录。
+4. 如果需要使用整个主屏，点击「使用全屏区域」。
 
-通知点击只处理应用仍在运行时新发出的通知；Windows 底层通知库不保证通知移入通知中心后的点击回调。开发模式的通知身份与安装版可能不同，最终验证请使用安装包。
+截图区域也可以直接填写坐标和宽高。选区指示框显示后，可以拖动边框重新调整区域；按 `Esc` 可清除当前选区。
 
-## 开发与打包
+### 录屏
 
-安装 Node.js 24、pnpm 10 和 Rust stable。Windows 还需 Visual Studio Build Tools 的“使用 C++ 的桌面开发”和 Windows SDK；macOS 需 Xcode Command Line Tools。
+1. 先选择截图区域，或使用全屏区域。
+2. 点击「开始录屏」开始录制。
+3. 点击「停止录屏」结束录制，视频会保存到设置的目录。
+
+录屏只采集画面，不采集麦克风和系统音频。当前版本只支持主显示器。
+
+### 设置保存位置和文件名
+
+在设置中选择保存目录，并填写文件名前缀。截图和录屏文件会使用此前缀加自增编号命名。
+
+### 使用自动化
+
+1. 打开「自动化」页面并新建脚本。
+2. 添加需要执行的步骤：模拟点击、键盘输入、等待、执行截图或执行录屏。
+3. 按需要调整步骤顺序，设置循环或指定执行次数。
+4. 保存脚本后，可以为脚本绑定独立快捷键。
+
+模拟输入受系统权限限制。普通权限运行的应用无法控制管理员权限窗口或系统安全桌面。
+
+### 后台运行
+
+关闭主窗口后，应用会继续运行在系统托盘或菜单栏中。需要退出应用时，请通过托盘或菜单栏菜单退出。
+
+## 安装方式
+
+### 直接安装
+
+下载与系统匹配的安装包并完成安装：
+
+- macOS：打开 `.app` 应用，或使用提供的 DMG 安装。
+- Windows：运行 `.exe` 安装程序，按向导完成安装。
+
+Windows 安装时如果系统提示安装 WebView2，请按提示完成安装。应用需要 WebView2 才能正常显示界面。
+
+### 从源码运行
+
+从源码运行需要 Node.js 24、pnpm 10 和 Rust stable。
+
+macOS 还需要安装 Xcode Command Line Tools；Windows 还需要安装 Visual Studio Build Tools 的「使用 C++ 的桌面开发」和 Windows SDK。
 
 ```sh
 pnpm install --registry https://registry.npmjs.org
 pnpm tauri dev
 ```
 
-在 macOS 上构建应用：
+公司内部 npm 镜像可能缺少 Tauri CLI 的平台二进制，安装依赖时请使用公共 npm 源。
+
+## 安装后无法使用
+
+### macOS 无法截图或录屏
+
+打开「系统设置 → 隐私与安全性」，为本应用授予以下权限：
+
+- 「屏幕录制」：用于截图和录屏。
+- 「辅助功能」：用于模拟鼠标点击、键盘输入和部分自动化操作。
+
+授权后完全退出并重新打开应用。如果应用不在权限列表中，可以点击列表下方的 `+` 手动添加应用。
+
+### macOS 打开时提示应用已损坏或无法验证开发者
+
+如果应用来自浏览器下载，系统可能会阻止首次打开。确认应用来源可信后，在终端执行：
 
 ```sh
-pnpm tauri build --bundles app
+xattr -dr com.apple.quarantine /path/to/ScreenCaptureTool.app
+open /path/to/ScreenCaptureTool.app
 ```
 
-应用输出到 `src-tauri/target/release/bundle/macos/ScreenCaptureTool.app`。生成 DMG 可改用 `--bundles dmg`。
+也可以在「系统设置 → 隐私与安全性」中允许本次打开。
 
-在 Windows 上构建安装器：
+### Windows 应用无法打开或界面空白
 
-```sh
-pnpm tauri build --bundles nsis
-```
+安装或修复 Microsoft Edge WebView2 Runtime，然后重新启动应用。Windows 安装器通常会自动引导安装 WebView2。
 
-安装器输出到 `src-tauri/target/release/bundle/nsis/`。默认使用构建机器的 CPU 架构；跨架构包需要相应 Rust 目标和系统工具链。
+### Windows 无法截图或录屏
 
-## 验证
+- 确认系统为 Windows 10 1903 及以上或 Windows 11。
+- 更新显卡驱动，并确认系统媒体编码组件可用。
+- Windows N 版本需要安装 Media Feature Pack。
+- 受保护的视频或窗口可能无法被系统捕获。
+- 当前版本只支持主显示器。
 
-```sh
-pnpm test
-pnpm build
-cargo test --manifest-path src-tauri/Cargo.toml --lib
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-```
+### 自动化点击或键盘输入无效
 
-在 macOS 上检查 Windows 原生模块的类型和 API：
+请为应用授予系统要求的辅助功能或输入权限，并确认应用与目标窗口具有相同权限级别。普通权限应用无法操作管理员权限窗口或 UAC 安全桌面。
 
-```sh
-rustup target add x86_64-pc-windows-msvc
-cargo check --manifest-path checks/windows/Cargo.toml --target x86_64-pc-windows-msvc --target-dir src-tauri/target
-```
+### 快捷键不生效
 
-此入口复用实际输入、键码映射和录屏源码，不执行系统输入或捕获，也不等于完整 Windows 应用打包。完整 Windows 构建需要 Windows SDK 资源编译器；`.github/workflows/desktop.yml` 提供两个平台的原生测试、构建和安装包产物任务，不发布 release。
+检查快捷键是否与其他应用冲突，并确认应用仍在系统托盘或菜单栏中运行。修改快捷键后重新启动应用，必要时换用未被系统占用的组合键。
 
-实机验收重点：
+### 录屏文件无法播放或时长异常
 
-- Windows 在 100%、125%、150% 缩放下验证框选、边框调整、截图和自动化点击位置一致。
-- 录制主屏/部分区域/奇数尺寸区域；长时间静止后停止，确认文件时长和最后画面正常。
-- 手动和自动化同时触发录屏时，确认只启动一个录屏任务；停止、错误和退出均完成清理。
-- 在普通应用中回放 Ctrl/Command、Shift、Alt、方向键和标点组合，确认修饰键正常释放。
-- 文件名带中文、空格或系统保留字符；点击新通知定位文件，删除文件后定位原目录。
-- 在安装版上检查托盘后台运行、快捷键、通知和屏幕捕获权限。
+录屏结束后请等待文件保存完成再打开。Windows 录屏依赖系统媒体编码组件，录制奇数尺寸区域时会向内裁剪最多一个像素，以满足 H.264 的尺寸要求。
+
+如果问题仍未解决，请先退出应用并重新打开，再确认系统版本、应用版本和相关权限状态。

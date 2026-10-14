@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shortcutText } from "./platform.js";
-import { buildKeyStroke } from "./mac-keycodes.js";
+import { shortcutText } from "../shared/platform.js";
+import { buildKeyStroke } from "../shared/mac-keycodes.js";
 
 test("shortcut captions use the correct platform modifiers", () => {
   assert.equal(shortcutText("CommandOrControl+Shift+S", true), "⌘ ⇧ S");

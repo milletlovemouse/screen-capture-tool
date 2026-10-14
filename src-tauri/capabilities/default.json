@@ -31,6 +31,8 @@
     "global-shortcut:allow-is-registered",
     "dialog:allow-open",
     "dialog:allow-confirm",
-    "notification:default"
+    "notification:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

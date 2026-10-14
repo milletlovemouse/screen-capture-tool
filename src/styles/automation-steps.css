@@ -1,0 +1,411 @@
+.automation-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100px;
+}
+
+.automation-steps-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 22px 12px;
+  border: 1px dashed #414451;
+  border-radius: 10px;
+  background: #1e2026;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.automation-steps-empty::before {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #2b3040;
+  color: #8baded;
+  font-size: 20px;
+  font-weight: 300;
+}
+
+.automation-steps-empty strong {
+  color: #c7cbd6;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.automation-steps-empty span {
+  color: #83899a;
+  font-size: 11px;
+}
+
+.automation-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 12px;
+  border: 1px solid #3a3d47;
+  border-radius: 10px;
+  background: #292b33;
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s ease,
+    border-color 0.12s ease;
+}
+
+.automation-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 54px;
+  bottom: -13px;
+  height: 12px;
+  border-left: 1px dashed #50576a;
+}
+
+.automation-step:hover {
+  border-color: #4d5364;
+}
+
+/* 拖动中的节点：抬起并跟随指针，不参与补间 */
+.automation-step.dragging {
+  z-index: 3;
+  transition: none;
+  border-color: #6b89bf;
+  background: #2f323c;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.automation-step.dragging::after {
+  display: none;
+}
+
+/* 拖动手柄：按住即可调整步骤顺序 */
+.step-drag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  width: 20px;
+  align-self: stretch;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7082;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.step-drag:hover {
+  background: #30323c;
+  color: #a5a9b7;
+}
+
+.step-drag:active {
+  cursor: grabbing;
+}
+
+.step-drag svg {
+  width: 15px;
+  height: 15px;
+}
+
+.step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  grid-column: 2;
+  grid-row: 1;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: rgba(79, 140, 255, 0.15);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.automation-step[data-type="wait"] .step-index {
+  background: rgba(217, 181, 123, 0.12);
+  color: #d9b57b;
+}
+
+.automation-step[data-type="capture"] .step-index {
+  background: rgba(134, 197, 181, 0.12);
+  color: #86c5b5;
+}
+
+.automation-step[data-type="record"] .step-index {
+  background: rgba(229, 142, 152, 0.12);
+  color: #e58e98;
+}
+
+.step-type {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 92px;
+  padding: 5px 8px;
+  border: 1px solid #3f414c;
+  border-radius: 7px;
+  background: #1d1e24;
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.step-type:hover {
+  border-color: #555867;
+  background: #23242b;
+}
+
+.step-type:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.step-type.menu-open {
+  border-color: var(--accent);
+  background: #23242b;
+}
+
+.step-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #90b3fb;
+}
+
+.step-type-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.step-type-label {
+  flex: 1;
+  text-align: left;
+}
+
+.step-type-caret {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.step-type.menu-open .step-type-caret {
+  transform: rotate(180deg);
+}
+
+/* 动作切换浮层菜单 */
+.step-type-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid #43454f;
+  border-radius: 10px;
+  background: #2b2d36;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  animation: step-menu-in 0.12s ease;
+}
+
+@keyframes step-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.step-type-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.step-type-option:hover {
+  background: #363944;
+}
+
+.step-type-option .step-type-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.step-type-option.type-wait .step-type-icon { color: #d9b57b; }
+.step-type-option.type-keys .step-type-icon { color: #b79bf0; }
+.step-type-option.type-capture .step-type-icon { color: #86c5b5; }
+.step-type-option.type-record .step-type-icon { color: #e58e98; }
+.step-type-option.type-click .step-type-icon { color: #90b3fb; }
+
+/* 节点按钮图标按类型着色 */
+.automation-step[data-type="wait"] .step-type > .step-type-icon { color: #d9b57b; }
+.automation-step[data-type="keys"] .step-type > .step-type-icon { color: #b79bf0; }
+.automation-step[data-type="capture"] .step-type > .step-type-icon { color: #86c5b5; }
+.automation-step[data-type="record"] .step-type > .step-type-icon { color: #e58e98; }
+
+.step-fields {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.step-fields input {
+  min-width: 0;
+  padding: 5px 6px;
+  font-size: 12px;
+}
+
+.step-fields .step-number {
+  width: 74px;
+}
+
+.step-coordinate {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: #9299aa;
+}
+
+.step-coordinate .step-number {
+  width: 66px;
+}
+
+.automation-step[data-type="keys"] .step-index {
+  background: rgba(183, 155, 240, 0.14);
+  color: #b79bf0;
+}
+
+.step-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.step-key-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid #45485a;
+  border-radius: 7px;
+  background: #30323d;
+  color: #e3e5ee;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.step-key-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #9299aa;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.step-key-chip button:hover {
+  background: rgba(255, 107, 107, 0.18);
+  color: #ff8a8a;
+}
+
+.step-keys-record.recording {
+  border-color: #b79bf0;
+  color: #cbb6ff;
+  background: rgba(183, 155, 240, 0.14);
+}
+
+.step-fields .step-location {
+  padding: 6px 10px;
+  min-height: 32px;
+  border-radius: 7px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.step-fields .step-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.step-remove {
+  grid-column: 4;
+  grid-row: 1;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.step-remove:hover {
+  border-color: #ff6b6b;
+  color: #ff8a8a;
+}
+
+.automation-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid #353741;
+  background: #292a32;
+}
+
+.automation-editor-actions button {
+  min-height: 34px;
+  min-width: 70px;
+  border-radius: 8px;
+}
+
+#view-automation button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@container (min-width: 580px) {
+  .automation-basic-fields {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+}
+
+@container (max-width: 440px) {
+  .automation-add-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .automation-editor-section, .automation-editor-head { padding: 14px; }
+  .step-fields { grid-column: 1 / -1; }
+}

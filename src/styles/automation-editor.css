@@ -1,0 +1,191 @@
+
+#view-automation {
+  container-type: inline-size;
+}
+
+.card.automation-editor {
+  margin-top: 14px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #25262d;
+  border-color: #3c3e48;
+}
+
+.automation-editor.hidden {
+  display: none;
+}
+
+.editor-name {
+  margin-left: auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.editor-status {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(79, 140, 255, 0.1);
+  color: #91b5ff;
+  font-size: 11px;
+}
+
+/* 名称已占据弹性空间时，状态标签不再独占 */
+.editor-name + .editor-status {
+  margin-left: 0;
+}
+
+.editor-collapse {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.editor-collapse svg {
+  transition: transform 0.15s ease;
+}
+
+.automation-editor.collapsed .editor-collapse svg {
+  transform: rotate(-90deg);
+}
+
+/* 收起时隐藏表单主体，只保留标题栏，便于浏览脚本列表 */
+.automation-editor.collapsed .automation-editor-section,
+.automation-editor.collapsed .automation-editor-actions {
+  display: none;
+}
+
+.automation-editor.collapsed .automation-editor-head {
+  border-bottom: none;
+}
+
+.automation-editor-head {
+  margin: 0;
+  padding: 16px 18px;
+  border-bottom: 1px solid #353741;
+  background: #292a32;
+}
+
+.automation-editor-head > svg {
+  color: #83acff;
+}
+
+.automation-editor-section {
+  padding: 16px 18px;
+}
+
+.automation-basic-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.automation-basic-fields label {
+  min-width: 0;
+  gap: 7px;
+}
+
+.automation-basic-fields .row {
+  margin: 0;
+  min-width: 0;
+}
+
+.automation-editor input {
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border-color: #3e404b;
+  background: #1d1e24;
+  color-scheme: dark;
+}
+
+.automation-editor input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.1);
+}
+
+.automation-editor input::placeholder {
+  color: #777b89;
+}
+
+.automation-basic-fields .btn-icon {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 8px;
+}
+
+.automation-editor .hint {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.automation-flow-section {
+  border-top: 1px solid #353741;
+  background: #22232a;
+}
+
+.automation-steps-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.automation-steps-head h3 {
+  margin: 0;
+}
+
+.automation-count-badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #30323c;
+  color: #a5a9b7;
+  font-size: 11px;
+}
+
+.automation-add-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 6px;
+  margin: 12px 0 16px;
+}
+
+.automation-add-buttons button.ghost {
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 35px;
+  padding: 7px 5px;
+  border-color: #3a3d48;
+  border-radius: 8px;
+  background: #2b2d36;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.automation-add-buttons button svg {
+  flex-shrink: 0;
+  color: #90b3fb;
+}
+
+.automation-add-buttons #add-wait-step svg { color: #d9b57b; }
+.automation-add-buttons #add-keys-step svg { color: #b79bf0; }
+.automation-add-buttons #add-capture-step svg { color: #86c5b5; }
+.automation-add-buttons #add-record-step svg { color: #e58e98; }
+
+.automation-add-buttons button:hover {
+  border-color: #6b89bf;
+  background: #323744;
+}
+
+.step-add-mark {
+  color: #83899a;
+  font-size: 13px;
+}
+

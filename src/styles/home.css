@@ -1,0 +1,194 @@
+.view.hidden {
+  display: none;
+}
+
+h3 {
+  font-size: 13px;
+  margin: 0 0 10px;
+  color: var(--fg);
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 4px 0 16px;
+}
+
+.action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 6px;
+  padding: 18px 18px 16px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease,
+    box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.action-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+.action-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.action-icon {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(79, 140, 255, 0.15);
+  color: var(--accent);
+}
+
+.action-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.action-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.action-desc {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.action-card.primary {
+  background: linear-gradient(135deg, #4f8cff, #3b6fe0);
+  border-color: transparent;
+  color: #fff;
+}
+
+.action-card.primary .action-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.action-card.primary .action-desc {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* 录屏与截图共用操作卡片布局，保留录制状态提示。 */
+.rec-btn .action-icon {
+  background: rgba(255, 77, 79, 0.15);
+}
+
+.rec-btn:hover {
+  border-color: #ff6b6b;
+}
+
+.rec-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff4d4f;
+}
+
+.rec-btn.recording {
+  background: rgba(255, 77, 79, 0.14);
+  border-color: #ff4d4f;
+  color: #ff6b6b;
+}
+
+.rec-btn.recording .rec-dot {
+  border-radius: 2px;
+  animation: rec-pulse 1s ease-in-out infinite;
+}
+
+/* 选区操作在窄窗口中自动换行。 */
+.region-card .row {
+  flex-wrap: wrap;
+}
+
+.region-card .row button {
+  white-space: nowrap;
+}
+
+@keyframes rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* 卡片标题带图标 */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.card-head svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.card-head h3 {
+  margin: 0;
+}
+
+/* 带图标的按钮 */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* 录制快捷键进行中的按钮高亮 */
+.btn-icon.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 页面标题 */
+.view > h2 {
+  font-size: 17px;
+  margin: 0 0 16px;
+}
+
+.view-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.view-title-row h2 {
+  margin: 0;
+}
+
+.view-title-row button {
+  padding: 7px 12px;
+}
+

@@ -1,0 +1,13 @@
+/* 样式入口：按界面区域分文件，顺序与原单文件一致，避免覆盖关系变化。 */
+@import "./base.css";
+@import "./layout.css";
+@import "./about.css";
+@import "./home.css";
+@import "./permissions.css";
+@import "./automation-list.css";
+@import "./automation-editor.css";
+@import "./automation-steps.css";
+@import "./forms.css";
+@import "./status.css";
+@import "./overlay.css";
+@import "./indicator.css";

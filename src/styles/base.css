@@ -1,0 +1,70 @@
+:root {
+  --bg: #1e1f24;
+  --card: #2a2b31;
+  --fg: #e8e8ea;
+  --muted: #9a9ba1;
+  --accent: #4f8cff;
+  --border: #3a3b42;
+  --scrollbar-thumb: #50525d;
+  --scrollbar-thumb-hover: #6b6e7c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 统一 WebView2 / WKWebView 的滚动条；高对比度模式保留系统样式。 */
+@media (forced-colors: none) {
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-width: 24px;
+    min-height: 24px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-color: var(--scrollbar-thumb);
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background-color: var(--accent);
+  }
+
+  *::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* 不支持 WebKit 伪元素时使用标准属性，避免覆盖圆角与悬停样式。 */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
+  }
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app {
+  padding: 16px 18px 24px;
+}
+

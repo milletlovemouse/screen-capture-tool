@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>截图工具</title>
-    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/styles/index.css" />
   </head>
   <body>
     <div class="layout">
@@ -12,7 +12,7 @@
         <div class="sidebar-top">
           <span class="brand">
             <span class="brand-logo">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <img id="brand-logo-image" alt="" />
             </span>
             <span class="brand-text">截图工具</span>
           </span>
@@ -33,9 +33,13 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/><path d="M10 7h4M7 10v4M17 10v4M10 17h4"/></svg>
             <span class="nav-text">自动化</span>
           </button>
-          <button id="pin-toggle" class="nav-item pin-item" type="button" title="钉在最上层">
+          <button id="pin-toggle" class="nav-item pin-item" type="button" title="置顶">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 3h6l-1 7 3 2v2H7v-2l3-2z"/></svg>
-            <span class="nav-text">钉在最上层</span>
+            <span class="nav-text">置顶</span>
+          </button>
+          <button class="nav-item" type="button" data-view="about" title="关于">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>
+            <span class="nav-text">关于</span>
           </button>
         </nav>
       </aside>
@@ -249,6 +253,43 @@
             <div class="automation-editor-actions">
               <button id="cancel-automation" type="button" class="ghost">取消</button>
               <button id="save-automation" type="button">保存脚本</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-about" class="view hidden">
+          <div class="about-hero">
+            <div class="about-logo">
+              <img id="about-logo-image" alt="截图工具图标" />
+            </div>
+            <div>
+              <h2>截图工具</h2>
+              <p>轻量、快速的截图、录屏与桌面自动化工具</p>
+              <span id="about-version" class="about-version">版本获取中…</span>
+            </div>
+          </div>
+
+          <div class="card about-card">
+            <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>
+              <h3>项目信息</h3>
+            </div>
+            <div class="about-meta">
+              <span class="about-meta-label">开源仓库</span>
+              <a href="https://github.com/milletlovemouse/screen-capture-tool" target="_blank" rel="noreferrer">GitHub 项目主页</a>
+            </div>
+          </div>
+          <div class="card about-card about-update-card">
+            <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+              <h3>应用更新</h3>
+            </div>
+            <div class="about-update-actions">
+              <span id="update-status" class="hint">点击检查 GitHub 最新版本</span>
+              <div class="row">
+                <button id="check-update" type="button" class="ghost">检查更新</button>
+                <button id="install-update" type="button" hidden>下载并安装</button>
+              </div>
             </div>
           </div>
         </section>

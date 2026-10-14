@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildKeyStroke, MAC_KEYCODES, FLAG } from "./mac-keycodes.js";
+import { buildKeyStroke, MAC_KEYCODES, FLAG } from "../shared/mac-keycodes.js";
 
 test("maps a modified key to its macOS keycode, flags and label", () => {
   const stroke = buildKeyStroke({ code: "KeyC", metaKey: true });
