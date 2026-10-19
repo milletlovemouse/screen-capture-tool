@@ -145,12 +145,12 @@ jobs:
               name = artifact.name
               if target in platforms and ".nsis.zip" not in name:
                   continue
-              for extension in (".app.tar.gz", ".nsis.zip", ".msi.zip"):
+              for extension in (".app.tar.gz", ".nsis.zip", ".msi.zip", ".exe", ".msi"):
                   if name.endswith(extension):
                       name = f"{name[:-len(extension)]}-{target}{extension}"
                       break
               else:
-                  name = f"{name}-{target}"
+                  raise SystemExit(f"Unsupported signed updater artifact: {name}")
               published_artifact = publish / name
               published_signature = publish / f"{name}.sig"
               shutil.copy2(artifact, published_artifact)
