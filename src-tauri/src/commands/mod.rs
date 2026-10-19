@@ -7,6 +7,8 @@ pub mod permissions;
 pub mod recording;
 
 /// 前端同步的 Dock 自动化脚本及运行状态。
+// 跨平台保留相同 IPC 参数结构，字段仅由 macOS Dock 实现读取。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(serde::Deserialize)]
 pub struct DockAutomationMenuItem {
     pub id: String,

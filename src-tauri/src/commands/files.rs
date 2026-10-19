@@ -32,7 +32,7 @@ pub fn sanitize_file_stem(value: &str) -> String {
     }
 }
 
-/// 原子占位并写入新文件；只在 AlreadyExists 时换名，绝不重开或覆盖已有文件。
+/// 原子占位并写入新文件；文件或目录占用时换名，不覆盖已有路径。
 pub fn write_unique_file(dir: &Path, base: &str, ext: &str, bytes: &[u8]) -> io::Result<PathBuf> {
     let mut index = 0_u64;
     loop {
@@ -49,7 +49,12 @@ pub fn write_unique_file(dir: &Path, base: &str, ext: &str, bytes: &[u8]) -> io:
                 file.flush()?;
                 return Ok(path);
             }
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            // Windows 对已存在目录返回 AccessDenied；仅确认目录占用时换名，
+            // 不能将其他权限错误当作冲突而无限尝试。
+            Err(error)
+                if error.kind() == io::ErrorKind::AlreadyExists
+                    || (error.kind() == io::ErrorKind::PermissionDenied && path.is_dir()) =>
+            {
                 index = index.checked_add(1).ok_or_else(|| {
                     io::Error::new(io::ErrorKind::AlreadyExists, "文件名序号已耗尽")
                 })?;
