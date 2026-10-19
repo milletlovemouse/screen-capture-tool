@@ -137,21 +137,22 @@
   background: var(--accent);
 }
 
-/* 置顶按钮推到底部，上方加分隔线 */
+/* 置顶保留底部位置，外观与其他菜单项一致。 */
 .pin-item {
   margin-top: auto;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  padding-top: 14px;
 }
 
-.pin-item.active {
+/* 收起/展开按钮沿用菜单项的底色、圆角及悬停反馈。 */
+#toggle-sidebar {
   background: transparent;
-  color: var(--accent);
+  border: none;
+  border-radius: 9px;
+  color: var(--muted);
 }
 
-.pin-item.active::before {
-  content: none;
+#toggle-sidebar:hover {
+  background: #23252c;
+  color: var(--fg);
 }
 
 /* 收起状态：仅显示图标 */
@@ -178,13 +179,8 @@
   display: none;
 }
 
-.layout.collapsed .pin-item {
-  padding-top: 14px;
-}
-
 .content {
   flex: 1;
   overflow-y: auto;
   padding: 18px 20px;
 }
-

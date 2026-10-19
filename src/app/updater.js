@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import appIconUrl from "../../app-icon.png";
-import { $ } from "../core/dom.js";
+import { $, setStatus } from "../core/dom.js";
 
 let availableUpdate = null;
 
@@ -26,7 +26,9 @@ export async function setupAbout() {
   for (const link of document.querySelectorAll("#view-about a[href^='http']")) {
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      invoke("open_external_url", { url: link.href });
+      void invoke("open_external_url", { url: link.href }).catch((error) => {
+        setStatus(`打开链接失败：${error}`, "err");
+      });
     });
   }
 }

@@ -2,6 +2,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use crate::commands::automation_cancel::AutomationState;
 use crate::commands::files::{sanitize_file_stem, unique_path};
 #[cfg(target_os = "macos")]
 use crate::platform::macos_ffi::CGPreflightScreenCaptureAccess;
@@ -77,6 +78,8 @@ pub fn clear_finished_recording(guard: &mut Option<RecordingProcess>) {
     }
 }
 /// 录制预设区域或主屏：macOS 保存 MOV，Windows 原生编码为 MP4。
+// 保留既有平铺 IPC 参数；两个 State 参数由 Tauri 注入，不改变调用格式。
+#[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
 pub fn start_recording(
     x: u32,
@@ -86,7 +89,11 @@ pub fn start_recording(
     dir: String,
     prefix: String,
     state: tauri::State<RecState>,
+    run_id: Option<String>,
+    automation_state: tauri::State<AutomationState>,
 ) -> Result<String, String> {
+    let operation = automation_state.operation(run_id.as_deref())?;
+    operation.check()?;
     let mut guard = state.0.lock().map_err(|_| "录制状态异常".to_string())?;
     clear_finished_recording(&mut guard);
     if guard.is_some() {
@@ -125,17 +132,29 @@ pub fn start_recording(
             .arg("-x")
             .arg(format!("-R{x},{y},{width},{height}"))
             .arg(&path);
+        operation.check()?;
         let child = cmd.spawn().map_err(|e| format!("启动录屏失败: {e}"))?;
         let path_str = path.to_string_lossy().into_owned();
-        *guard = Some(RecordingProcess::Mac(child, path_str.clone()));
+        let process = RecordingProcess::Mac(child, path_str.clone());
+        if let Err(error) = operation.check() {
+            let _ = stop_recording_process(process);
+            return Err(error);
+        }
+        *guard = Some(process);
         Ok(path_str)
     }
     #[cfg(target_os = "windows")]
     {
         let path = unique_path(&dir_path, &base, "mp4");
+        operation.check()?;
         let recording = windows_recording::Recording::start(&path, rect)?;
         let path_str = path.to_string_lossy().into_owned();
-        *guard = Some(RecordingProcess::Windows(recording, path_str.clone()));
+        let process = RecordingProcess::Windows(recording, path_str.clone());
+        if let Err(error) = operation.check() {
+            let _ = stop_recording_process(process);
+            return Err(error);
+        }
+        *guard = Some(process);
         Ok(path_str)
     }
 }

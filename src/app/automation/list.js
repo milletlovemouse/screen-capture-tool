@@ -1,6 +1,7 @@
-import { $ } from "../../core/dom.js";
+import { $, setStatus } from "../../core/dom.js";
 import { saveSettings } from "../../core/settings.js";
 import { showHomeShortcut } from "../shortcuts.js";
+import { refreshAutomationDesktopMenus } from "../tray.js";
 import { saveAutomationRunSettings, updateAutomationRunUI } from "./model.js";
 import { stopAutomation, toggleAutomation } from "./runner.js";
 import { unregisterAutomationShortcuts } from "./shortcuts.js";
@@ -20,8 +21,32 @@ import {
   setAutomationScripts,
 } from "../../core/state.js";
 
+const automationScriptDeletions = new Set();
+
+// 删除与快捷键保存共用队列，注销成功后才移除配置；失败允许重试。
+export async function deleteAutomationScript(id) {
+  if (automationScriptDeletions.has(id) || !automationScripts.some((item) => item.id === id)) return;
+  automationScriptDeletions.add(id);
+  try {
+    if (editingAutomationId && isEditorDirty() && !(await confirmDiscard())) return;
+    if (automationRuns.has(id)) await stopAutomation(id);
+    await unregisterAutomationShortcuts(id, () => {
+      setAutomationScripts(automationScripts.filter((item) => item.id !== id));
+      if (editingAutomationId === id) closeAutomationEditor();
+      saveSettings();
+      renderAutomationList();
+      renderHomeAutomations();
+    });
+  } catch (error) {
+    setStatus(`脚本删除失败：${error}`, "err");
+  } finally {
+    automationScriptDeletions.delete(id);
+  }
+}
+
 // 首页每个脚本独立选择执行方式，并直接开始或停止。
 export function renderHomeAutomations() {
+  void refreshAutomationDesktopMenus();
   const list = $("home-automation-list");
   if (!list) return;
   list.replaceChildren();
@@ -178,16 +203,9 @@ export function renderAutomationList() {
     remove.type = "button";
     remove.className = "ghost danger";
     remove.textContent = "删除";
-    remove.addEventListener("click", async (event) => {
+    remove.addEventListener("click", (event) => {
       event.stopPropagation();
-      if (editingAutomationId && isEditorDirty() && !(await confirmDiscard())) return;
-      if (automationRuns.has(script.id)) await stopAutomation(script.id);
-      await unregisterAutomationShortcuts(script.id);
-      setAutomationScripts(automationScripts.filter((item) => item.id !== script.id));
-      if (editingAutomationId === script.id) closeAutomationEditor();
-      saveSettings();
-      renderAutomationList();
-      renderHomeAutomations();
+      void deleteAutomationScript(script.id);
     });
     actions.append(duplicate, remove);
     const info = document.createElement("div");

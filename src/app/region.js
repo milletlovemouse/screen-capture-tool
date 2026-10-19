@@ -4,12 +4,9 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { $, setStatus } from "../core/dom.js";
 import { saveSettings } from "../core/settings.js";
-import {
-  automationRecordingRun,
-  recordingActive,
-  recordingBusy,
-  recordingKey,
-} from "../core/state.js";
+import { registerRegionEscape, releaseRegionEscape } from "./automation/safety.js";
+import { withCaptureOverlayLock, captureOverlaysBlocked, forgetCaptureOverlay, waitCaptureWindowCreated } from "./capture-overlays.js";
+import { recordingKey } from "../core/state.js";
 
 // 当前预设区域（逻辑坐标）
 export function regionPayload() {
@@ -30,12 +27,34 @@ export function getIndicator() {
   return WebviewWindow.getByLabel("indicator");
 }
 
+// 按钮和全局快捷键共用全屏选区操作。
+export async function useFullscreenRegion() {
+  try {
+    const [width, height] = await invoke("primary_size");
+    $("x").value = 0;
+    $("y").value = 0;
+    $("w").value = width;
+    $("h").value = height;
+    saveSettings();
+    broadcastRegion();
+    setStatus(`已设置为全屏区域 ${width}x${height}`, "ok");
+  } catch (error) {
+    setStatus(`获取屏幕尺寸失败：${error}`, "err");
+  }
+}
+
 // 打开全屏透明覆盖窗进行拖拽框选
 export async function openRegionPicker() {
+  return withCaptureOverlayLock(openRegionPickerLocked)
+    .catch((error) => setStatus(`无法打开框选窗口：${error}`, "err"));
+}
+
+// 捕获锁内创建窗口，重复请求不替换正在使用的选区窗口。
+async function openRegionPickerLocked() {
+  if (captureOverlaysBlocked()) return;
+  if (await WebviewWindow.getByLabel("point-picker")) return;
   const existing = await WebviewWindow.getByLabel("overlay");
-  if (existing) {
-    await existing.close();
-  }
+  if (existing) return;
   const mainWin = getCurrentWindow();
   // 记录主窗口当前是否可见：从主窗口发起则框选后恢复，从托盘发起（后台）则保持隐藏
   const wasVisible = await mainWin.isVisible();
@@ -60,6 +79,12 @@ export async function openRegionPicker() {
     decorations: false,
     alwaysOnTop: true,
     skipTaskbar: true,
+    visible: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    shadow: false,
+    dragDropEnabled: false,
     width: sw,
     height: sh,
     title: "框选区域",
@@ -75,10 +100,16 @@ export async function openRegionPicker() {
       await mainWin.setFocus();
     }
   });
+  try {
+    await waitCaptureWindowCreated(overlay);
+  } catch (error) {
+    if (wasVisible) await mainWin.show();
+    throw error;
+  }
 }
 
 // 创建常驻选区框窗口，边框附近可调整，内部点击穿透。
-export function createIndicator() {
+export async function createIndicator() {
   const { width, height } = regionPayload();
   const win = new WebviewWindow("indicator", {
     x: 0,
@@ -98,19 +129,24 @@ export function createIndicator() {
   win.once("tauri://error", (e) => {
     setStatus(`无法打开选区框：${e.payload}`, "err");
   });
+  await waitCaptureWindowCreated(win);
   return win;
 }
 
 // 确保选区框已显示（默认启动时调用）
 export async function ensureIndicator() {
-  if (recordingActive || recordingBusy || automationRecordingRun) return;
-  const win = await getIndicator();
-  if (win) {
-    await win.show();
-    broadcastRegion();
-  } else {
-    createIndicator();
-  }
+  const region = regionPayload();
+  if (region.width > 0 && region.height > 0) await registerRegionEscape();
+  return withCaptureOverlayLock(async () => {
+    if (captureOverlaysBlocked()) return;
+    const win = await getIndicator();
+    if (win) {
+      await win.show();
+      broadcastRegion();
+    } else {
+      await createIndicator();
+    }
+  });
 }
 
 // 清空当前预设选区：重置坐标并隐藏选区框
@@ -118,14 +154,23 @@ export async function clearRegion() {
   if (recordingKey) return;
   ["x", "y", "w", "h"].forEach((id) => ($(id).value = 0));
   saveSettings();
-  const ind = await getIndicator();
-  if (ind) await ind.hide();
+  await withCaptureOverlayLock(async () => {
+    forgetCaptureOverlay("indicator");
+    const ind = await getIndicator();
+    if (ind) await ind.hide();
+  });
+  await releaseRegionEscape();
   setStatus("已清空选区", "ok");
 }
 
 // 显示/隐藏常驻选区框
 export async function toggleIndicator() {
-  if (recordingActive || recordingBusy || automationRecordingRun) {
+  return withCaptureOverlayLock(toggleIndicatorLocked);
+}
+
+// 与捕获的隐藏/恢复串行化，不在录制期间重新显示边框。
+async function toggleIndicatorLocked() {
+  if (captureOverlaysBlocked()) {
     setStatus("录屏期间选区框保持隐藏，结束后恢复", "");
     return;
   }
@@ -141,5 +186,5 @@ export async function toggleIndicator() {
     }
     return;
   }
-  createIndicator();
+  await createIndicator();
 }

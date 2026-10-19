@@ -4,13 +4,14 @@ import {
   getCurrentWindow,
   LogicalPosition,
   LogicalSize,
+  primaryMonitor,
 } from "@tauri-apps/api/window";
+import { IS_MAC } from "../shared/platform.js";
 
 const selection = document.getElementById("selection");
 const sizeLabel = document.getElementById("size-label");
 const loupe = document.getElementById("loupe");
 const loupeInfo = document.getElementById("loupe-info");
-const virtualPointer = document.getElementById("virtual-pointer");
 const ctx = loupe.getContext("2d");
 const self = getCurrentWindow();
 
@@ -26,7 +27,9 @@ let startY = 0;
 let pointerX = 0;
 let pointerY = 0;
 let dragging = false;
-let keyboardMode = false; // 方向键微调时为 true，此时才显示虚拟指针
+let selectionPointerId = null;
+let coverReady = false;
+let keyboardMode = false; // 方向键微调时保留取样坐标，不被静止的系统鼠标位置覆盖
 let lastCursorX = null;
 let lastCursorY = null;
 let running = true;
@@ -35,29 +38,37 @@ let bounds = { width: window.innerWidth, height: window.innerHeight };
 
 // 覆盖主屏、跨桌面可见
 async function initCover() {
-  try {
+  if (!IS_MAC) {
+    // 先用物理坐标定位主屏，再全屏，避免 DPI 换算及工作区限制裁小窗口。
+    const monitor = await primaryMonitor();
+    if (!monitor) throw new Error("无法获取主显示器，已取消框选");
+    await self.setPosition(monitor.position);
+    await self.setSize(monitor.size);
+    await self.setFullscreen(true);
+    bounds = {
+      width: monitor.size.width / monitor.scaleFactor,
+      height: monitor.size.height / monitor.scaleFactor,
+    };
+    // Windows 透明窗口保留极低 alpha 命中面，避免空白区域点击穿透。
+    document.body.classList.add("overlay-body-windows");
+  } else {
     const [w, h] = await invoke("primary_size");
     bounds = { width: w, height: h };
     await self.setPosition(new LogicalPosition(0, 0));
     await self.setSize(new LogicalSize(w, h));
-  } catch {
-    /* 取不到尺寸时保持创建时的大小 */
   }
   await self.setAlwaysOnTop(true);
-  try {
-    await self.setVisibleOnAllWorkspaces(true);
-  } catch {
-    /* 非 macOS 可忽略 */
-  }
   try {
     await self.setCursorIcon("crosshair"); // 强制系统指针为十字
   } catch {
     /* 不支持时退回 CSS 的 crosshair */
   }
+  await self.show();
   await self.setFocus();
   const position = await self.innerPosition();
   const scale = await self.scaleFactor();
   origin = { x: position.x / scale, y: position.y / scale };
+  coverReady = true;
 }
 
 function rectFrom(x1, y1, x2, y2) {
@@ -137,14 +148,6 @@ function placeLoupe() {
   loupeInfo.style.top = ly + LOUPE_SIZE + 2 + "px";
   loupeInfo.style.display = "block";
 
-  // 虚拟指针仅在方向键模式下显示，避免被实时取样拍进放大镜
-  if (keyboardMode) {
-    virtualPointer.style.left = `${localX}px`;
-    virtualPointer.style.top = `${localY}px`;
-    virtualPointer.style.display = "block";
-  } else {
-    virtualPointer.style.display = "none";
-  }
 }
 
 // 轮询：跟随真实鼠标（跨桌面也生效，无需先点一下），并实时刷新放大镜画面
@@ -191,8 +194,11 @@ async function loop() {
   if (running) requestAnimationFrame(loop);
 }
 
-window.addEventListener("mousedown", (e) => {
-  if (e.button !== 0) return;
+window.addEventListener("pointerdown", (e) => {
+  if (!coverReady || dragging || e.button !== 0) return;
+  e.preventDefault();
+  document.body.setPointerCapture(e.pointerId);
+  selectionPointerId = e.pointerId;
   dragging = true;
   startX = pointerX = e.clientX + origin.x;
   startY = pointerY = e.clientY + origin.y;
@@ -201,21 +207,26 @@ window.addEventListener("mousedown", (e) => {
 });
 
 // 鼠标移动即时更新指针与选区/放大镜位置，内容由取样循环按帧刷新，避免跟随掉帧
-window.addEventListener("mousemove", (e) => {
-  lastCursorX = pointerX = e.clientX + origin.x;
-  lastCursorY = pointerY = e.clientY + origin.y;
+window.addEventListener("pointermove", (e) => {
+  if (!coverReady || (dragging && e.pointerId !== selectionPointerId)) return;
+  lastCursorX = pointerX = Math.max(0, Math.min(bounds.width, e.clientX + origin.x));
+  lastCursorY = pointerY = Math.max(0, Math.min(bounds.height, e.clientY + origin.y));
   keyboardMode = false;
   if (dragging) updateSelectionEnd();
   placeLoupe();
 });
 
-window.addEventListener("mouseup", async (e) => {
-  if (!dragging || e.button !== 0) return;
+window.addEventListener("pointerup", async (e) => {
+  if (!dragging || e.button !== 0 || e.pointerId !== selectionPointerId) return;
   if (!keyboardMode) {
-    pointerX = e.clientX + origin.x;
-    pointerY = e.clientY + origin.y;
+    pointerX = Math.max(0, Math.min(bounds.width, e.clientX + origin.x));
+    pointerY = Math.max(0, Math.min(bounds.height, e.clientY + origin.y));
   }
   dragging = false;
+  selectionPointerId = null;
+  if (document.body.hasPointerCapture(e.pointerId)) {
+    document.body.releasePointerCapture(e.pointerId);
+  }
   const r = rectFrom(startX, startY, pointerX, pointerY);
   if (r.width < 2 || r.height < 2) {
     running = false;
@@ -231,6 +242,15 @@ window.addEventListener("mouseup", async (e) => {
   });
   running = false;
   await self.close();
+});
+
+// 系统取消指针操作时丢弃未完成选区，不留下卡住的拖拽状态。
+window.addEventListener("pointercancel", (e) => {
+  if (e.pointerId !== selectionPointerId) return;
+  dragging = false;
+  selectionPointerId = null;
+  selection.style.display = "none";
+  sizeLabel.style.display = "none";
 });
 
 // 键盘：Esc 取消；方向键微调指针位置
@@ -256,4 +276,8 @@ window.addEventListener("keydown", async (e) => {
 });
 
 window.addEventListener("beforeunload", () => { running = false; });
-initCover().then(loop).catch(console.error);
+initCover().then(loop).catch(async (error) => {
+  console.error("框选窗口初始化失败", error);
+  running = false;
+  await self.close();
+});

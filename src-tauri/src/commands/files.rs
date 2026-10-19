@@ -1,6 +1,9 @@
 //! 文件名与路径处理，以及在系统中打开文件、链接。
+use std::fs::OpenOptions;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+/// 清理文件名前缀，兼容 macOS 与 Windows 保留字符和设备名。
 pub fn sanitize_file_stem(value: &str) -> String {
     let stem: String = value
         .trim()
@@ -26,6 +29,33 @@ pub fn sanitize_file_stem(value: &str) -> String {
         format!("_{stem}")
     } else {
         stem.into()
+    }
+}
+
+/// 原子占位并写入新文件；只在 AlreadyExists 时换名，绝不重开或覆盖已有文件。
+pub fn write_unique_file(dir: &Path, base: &str, ext: &str, bytes: &[u8]) -> io::Result<PathBuf> {
+    let mut index = 0_u64;
+    loop {
+        let name = if index == 0 {
+            format!("{base}.{ext}")
+        } else {
+            format!("{base}{index}.{ext}")
+        };
+        let path = dir.join(name);
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut file) => {
+                // 失败时保留本次占位文件，不按路径删除，避免误删被外部替换的文件。
+                file.write_all(bytes)?;
+                file.flush()?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                index = index.checked_add(1).ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::AlreadyExists, "文件名序号已耗尽")
+                })?;
+            }
+            Err(error) => return Err(error),
+        }
     }
 }
 
@@ -158,6 +188,7 @@ pub fn open_external_url(url: String) -> Result<(), String> {
 }
 #[cfg(test)]
 mod tests {
+    /// 文件名前缀在两个支持平台上均合法。
     #[test]
     fn filenames_are_valid_on_both_platforms() {
         assert_eq!(super::sanitize_file_stem("a:b/c\\d?*"), "a_b_c_d__");

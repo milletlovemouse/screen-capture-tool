@@ -113,11 +113,6 @@ async function init() {
   await self.setSize(new LogicalSize(width, height));
   await syncOrigin();
   await self.onMoved(() => { void syncOrigin().catch(console.error); });
-  await self.setAlwaysOnTop(true);
-  try {
-    await self.setVisibleOnAllWorkspaces(true);
-  } catch { /* 非 macOS 可忽略 */ }
-
   for (const hit of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
     const handle = document.createElement("span");
     handle.className = `region-handle handle-${hit}`;

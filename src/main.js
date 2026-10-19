@@ -6,18 +6,25 @@ import { IS_MAC } from "./shared/platform";
 import { $, setStatus } from "./core/dom.js";
 import { loadSettings, saveSettings } from "./core/settings.js";
 import { doCapture } from "./app/capture.js";
-import { toggleRecording, updateRecUI } from "./app/recording.js";
+import {
+  hideIndicatorForRecording,
+  startRecordingMonitor,
+  toggleRecording,
+  updateRecUI,
+} from "./app/recording.js";
 import {
   broadcastRegion,
   clearRegion,
   ensureIndicator,
   openRegionPicker,
   toggleIndicator,
+  useFullscreenRegion,
 } from "./app/region.js";
 import {
   SHORTCUTS,
   onRecordKeydown,
   registerShortcut,
+  registerRegionShortcuts,
   startRecording,
   stopRecording,
   updateHomeShortcuts,
@@ -25,16 +32,19 @@ import {
 import { refreshPermissions, setupPermissions } from "./app/permissions.js";
 import { setupAbout } from "./app/updater.js";
 import { setupNav, setupSidebar } from "./app/navigation.js";
-import { handleDesktopMenuAction, setupTray } from "./app/tray.js";
+import { handleDesktopMenuAction, setAutomationMenuAction, setupTray } from "./app/tray.js";
+import { toggleAutomation } from "./app/automation/runner.js";
 import { setupAutomation } from "./app/automation/editor.js";
 import { renderAutomationSteps } from "./app/automation/steps.js";
 import { registerAutomationScriptShortcuts } from "./app/automation/shortcuts.js";
 import {
   automationScripts,
+  automationRuns,
   automationShortcutRecording,
   keysRecording,
   pinned,
   pointPickingStep,
+  recordingActive,
   recordingKey,
   setPointPickingStep,
   setRecordingActive,
@@ -47,7 +57,7 @@ function bindEvents() {
   $("record-toggle").addEventListener("click", toggleRecording);
 
   // 快捷键录制：两个录制按钮分别录制截图/录屏快捷键
-  ["capture", "record"].forEach((key) => {
+  ["capture", "record", "region", "fullscreen", "indicator"].forEach((key) => {
     $(SHORTCUTS[key].btn).addEventListener("click", () => {
       if (recordingKey === key) {
         stopRecording(true);
@@ -62,25 +72,12 @@ function bindEvents() {
 
   // 已选区域后按 Esc 清空选区（录制快捷键/按键录制时的 Esc 不走这里）
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !recordingKey && !keysRecording && !automationShortcutRecording) {
-      clearRegion();
+    if (e.key === "Escape" && !automationRuns.size && !recordingKey && !keysRecording && !automationShortcutRecording) {
+      void clearRegion().catch(console.error);
     }
   });
 
-  $("use-fullscreen").addEventListener("click", async () => {
-    try {
-      const [w, h] = await invoke("primary_size");
-      $("x").value = 0;
-      $("y").value = 0;
-      $("w").value = w;
-      $("h").value = h;
-      saveSettings();
-      broadcastRegion();
-      setStatus(`已设置为全屏区域 ${w}x${h}`, "ok");
-    } catch (e) {
-      setStatus(`获取屏幕尺寸失败：${e}`, "err");
-    }
-  });
+  $("use-fullscreen").addEventListener("click", useFullscreenRegion);
 
   $("pick-dir").addEventListener("click", async () => {
     const selected = await open({ directory: true, multiple: false });
@@ -153,8 +150,31 @@ function bindWindowEvents() {
   });
 }
 
-async function init() {
+// 按截图、录屏、脚本的顺序恢复快捷键，单项失败不产生未处理拒绝。
+async function registerStartupShortcuts() {
+  for (const [key, input] of [["capture", "shortcut"], ["record", "shortcut-record"]]) {
+    try {
+      if ($(input).value.trim()) await registerShortcut(key);
+    } catch (error) {
+      setStatus(`快捷键注册失败：${error}`, "err");
+    }
+  }
+  for (const script of [...automationScripts]) {
+    try {
+      await registerAutomationScriptShortcuts(script, {
+        isCurrent: () => automationScripts.includes(script),
+      });
+    } catch (error) {
+      setStatus(`快捷键注册失败：${error}`, "err");
+    }
+  }
+  await registerRegionShortcuts();
+}
+
+// 初始化主窗口，恢复录屏状态后才决定是否显示常驻选区框。
+async function initializeMainWindow() {
   loadSettings();
+  setAutomationMenuAction(toggleAutomation);
   if (!IS_MAC) {
     const screenInfo = document.querySelector('.permission-row[data-perm="screen"] .permission-desc');
     const inputInfo = document.querySelector('.permission-row[data-perm="accessibility"] .permission-desc');
@@ -164,7 +184,7 @@ async function init() {
   updateHomeShortcuts();
   bindEvents();
   setupNav();
-  setupAbout();
+  await setupAbout();
   setupSidebar();
   setupAutomation();
   setupPermissions();
@@ -175,11 +195,6 @@ async function init() {
     const w = getCurrentWindow();
     try {
       await w.setAlwaysOnTop(true);
-      try {
-        await w.setVisibleOnAllWorkspaces(true);
-      } catch {
-        /* 非 macOS 可忽略 */
-      }
     } catch {
       /* 忽略 */
     }
@@ -193,24 +208,35 @@ async function init() {
   }
   await setupTray();
 
-  // 默认显示常驻选区框
-  await ensureIndicator();
-
-  // 同步录屏状态（防止上次未正常结束）
+  // 重载时先恢复录屏状态并隐藏覆盖窗，避免常驻选区框被拍入录屏。
   try {
     setRecordingActive(await invoke("is_recording"));
     updateRecUI();
+    if (recordingActive) {
+      await hideIndicatorForRecording();
+      startRecordingMonitor();
+    }
   } catch {
     /* 忽略 */
   }
 
+  // 仅未录屏时恢复常驻选区框。
+  if (!recordingActive) await ensureIndicator();
+
   // 启动时自动注册已保存的快捷键
-  if ($("shortcut").value.trim()) registerShortcut("capture");
-  if ($("shortcut-record").value.trim()) registerShortcut("record");
-  automationScripts.forEach((script) => registerAutomationScriptShortcuts(script));
+  await registerStartupShortcuts();
 
   // 启动时检查权限，缺失则提醒去设置页授权
   await refreshPermissions();
+}
+
+// 保留现有入口名称与调用形式，并统一接住启动失败。
+async function init() {
+  try {
+    await initializeMainWindow();
+  } catch (error) {
+    setStatus(`初始化失败：${error}`, "err");
+  }
 }
 
 init();

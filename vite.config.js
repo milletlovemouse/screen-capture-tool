@@ -15,6 +15,7 @@ export default defineConfig({
         overlay: "overlay.html",
         indicator: "indicator.html",
         "point-picker": "point-picker.html",
+        "automation-status": "automation-status.html",
       },
     },
   },

@@ -83,6 +83,14 @@ fn key(scan: u16, up: bool) -> INPUT {
 
 /// 校验整个序列后逐组注入，失败也释放修饰键，避免系统卡在按下状态。
 pub fn keys(keys: &[crate::KeyStroke]) -> Result<(), String> {
+    keys_with_guard(keys, |stroke| stroke())
+}
+
+/// 每 stroke 经调用方取消门控；回调内包含完整释放，不依赖应用状态类型。
+pub fn keys_with_guard(
+    keys: &[crate::KeyStroke],
+    mut with_active: impl FnMut(&mut dyn FnMut() -> Result<(), String>) -> Result<(), String>,
+) -> Result<(), String> {
     let scans: Vec<_> = keys
         .iter()
         .map(|stroke| {
@@ -104,12 +112,15 @@ pub fn keys(keys: &[crate::KeyStroke]) -> Result<(), String> {
         let mut inputs: Vec<_> = modifiers.iter().map(|scan| key(*scan, false)).collect();
         inputs.extend([key(scan, false), key(scan, true)]);
         inputs.extend(modifiers.iter().rev().map(|scan| key(*scan, true)));
-        if let Err(error) = send(&inputs) {
-            let mut release = vec![key(scan, true)];
-            release.extend(modifiers.iter().rev().map(|scan| key(*scan, true)));
-            let _ = send(&release);
-            return Err(error);
-        }
+        with_active(&mut || {
+            if let Err(error) = send(&inputs) {
+                let mut release = vec![key(scan, true)];
+                release.extend(modifiers.iter().rev().map(|scan| key(*scan, true)));
+                let _ = send(&release);
+                return Err(error);
+            }
+            Ok(())
+        })?;
     }
     Ok(())
 }

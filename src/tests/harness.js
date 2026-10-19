@@ -12,6 +12,8 @@ const MODULES = [
   "core/settings.js",
   "app/automation/model.js",
   "app/region.js",
+  "app/capture-overlays.js",
+  "app/automation/safety.js",
   "app/capture.js",
   "app/recording.js",
   "app/automation/steps.js",
@@ -52,22 +54,56 @@ export function harness(isMac = true) {
   const notifications = [];
   const notificationListeners = [];
   const actionTypes = [];
+  const dialogs = [];
+  const windows = new Map();
+  class MockWebviewWindow {
+    static async getByLabel(label) {
+      return windows.get(label) || null;
+    }
+
+    constructor(label, options = {}) {
+      this.label = label;
+      this.visible = options.visible !== false;
+      windows.set(label, this);
+    }
+
+    async once(name, callback) {
+      if (name === "tauri://created") Promise.resolve().then(() => callback({}));
+      return () => {};
+    }
+    async setIgnoreCursorEvents() {}
+    async show() { this.visible = true; }
+    async hide() { this.visible = false; }
+    async isVisible() { return this.visible; }
+    async close() {
+      this.visible = false;
+      windows.delete(this.label);
+    }
+  }
   const context = vm.createContext({
     IS_MAC: isMac,
     shortcutText: (value) => shortcutText(value, isMac),
     setTimeout,
+    clearTimeout,
     register: async (key, callback) => {
       if (shortcuts.has(key)) throw new Error("快捷键已占用");
       shortcuts.set(key, callback);
     },
     unregister: async (key) => { shortcuts.delete(key); },
     isRegistered: async (key) => shortcuts.has(key),
+    message: async (text, options) => { dialogs.push({ text, options }); },
+    WebviewWindow: MockWebviewWindow,
     localStorage: { setItem: (key, value) => storage.set(key, value) },
     document: {
       querySelector: () => ({ classList: { contains: () => false } }),
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, {
-          value: id === "dir" ? "/tmp" : "1",
+          value: ({
+            dir: "/tmp",
+            "shortcut-region": "CommandOrControl+Shift+X",
+            "shortcut-fullscreen": "CommandOrControl+Shift+A",
+            "shortcut-indicator": "CommandOrControl+Shift+D",
+          })[id] ?? "1",
           textContent: "",
           classList: { toggle() {} },
         });
@@ -75,6 +111,9 @@ export function harness(isMac = true) {
       },
     },
     invoke: async (command, args) => {
+      if (["begin_automation_operation", "cancel_automation_operation", "end_automation_operation"].includes(command)) return;
+      if (command === "is_recording") return true;
+      if (command === "primary_size") return [1440, 900];
       if (command === "plugin:notification|notify") {
         assert.equal(notificationListeners.length, 1, "发送前必须绑定点击监听");
         const type = actionTypes.find((type) => type.id === args.options.actionTypeId);
@@ -101,6 +140,8 @@ export function harness(isMac = true) {
     notifications,
     notificationListeners,
     actionTypes,
+    dialogs,
+    windows,
     run(script) {
       context.script = { id: "test", name: "test", ...script };
       return vm.runInContext("runAutomation(script)", context);

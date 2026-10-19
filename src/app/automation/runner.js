@@ -3,16 +3,23 @@ import { sendNotification } from "@tauri-apps/plugin-notification";
 import { $, setStatus, sleep } from "../../core/dom.js";
 import { doCapture, notifySavedFile } from "../capture.js";
 import { regionPayload } from "../region.js";
+import { refreshAutomationDesktopMenus } from "../tray.js";
 import {
   hideIndicatorForRecording,
   restoreIndicatorAfterRecording,
   updateRecUI,
+  startRecordingMonitor,
+  stopRecordingMonitor,
 } from "../recording.js";
 import {
   cloneAutomation,
   saveAutomationRunSettings,
   updateAutomationRunUI,
 } from "./model.js";
+import {
+  prepareAutomationSafety,
+  releaseAutomationSafety,
+} from "./safety.js";
 import {
   automationHomeControls,
   automationRecordingRun,
@@ -23,6 +30,8 @@ import {
   setAutomationRecordingRun,
   setRecordingActive,
 } from "../../core/state.js";
+
+let automationRunSequence = 0;
 
 // 允许结束快捷键及时中断等待或定时录制
 async function cancellableAutomationWait(ms, run) {
@@ -37,6 +46,7 @@ async function cancellableAutomationWait(ms, run) {
 // 停止自动化占用的录屏资源，统一处理状态与选区框恢复。
 async function stopAutomationRecording(run) {
   if (!run.recording) return;
+  stopRecordingMonitor();
   run.recording = false;
   try {
     run.lastSavedPath = await invoke("stop_recording");
@@ -56,20 +66,37 @@ export async function runAutomation(script) {
         !saveAutomationRunSettings(script.id, script.runMode, Number(countInput.value))) return;
   }
   script = cloneAutomation(script);
+  if (!script.steps.length) {
+    setStatus("自动化失败：脚本没有配置步骤", "err");
+    return;
+  }
+  if (script.runMode === "count" &&
+      (!Number.isSafeInteger(script.runCount) || script.runCount < 1)) {
+    setStatus("自动化失败：执行次数必须为大于 0 的整数", "err");
+    return;
+  }
   const run = { cancelled: false, recording: false, completedRuns: 0 };
+  run.runId = `${script.id}:${Date.now()}:${++automationRunSequence}`;
+  // 注册完成前的取消由启动路径检查；原生任务已开始时通知后端停止后续工作。
+  run.requestCancel = () => {
+    run.cancelled = true;
+    void refreshAutomationDesktopMenus();
+    if (run.nativeReady) {
+      void invoke("cancel_automation_operation", { runId: run.runId }).catch(() => {});
+    }
+  };
   let finishRun;
   run.finished = new Promise((resolve) => { finishRun = resolve; });
   automationRuns.set(script.id, run);
+  void refreshAutomationDesktopMenus();
   setStatus(`正在执行：${script.name}`, "ok");
   try {
     updateAutomationRunUI(script.id);
-    if (!script.steps.length) {
-      throw new Error("脚本没有配置步骤");
-    }
-    if (script.runMode === "count" &&
-        (!Number.isSafeInteger(script.runCount) || script.runCount < 1)) {
-      throw new Error("执行次数必须为大于 0 的整数");
-    }
+    if (!(await prepareAutomationSafety(script))) return;
+    if (run.cancelled) return;
+    await invoke("begin_automation_operation", { runId: run.runId });
+    run.nativeReady = true;
+    if (run.cancelled) run.requestCancel();
     const totalRuns =
       script.runMode === "loop"
         ? Number.POSITIVE_INFINITY
@@ -134,25 +161,33 @@ export async function runAutomation(script) {
       updateRecUI();
     }
     automationRuns.delete(script.id);
-    finishRun();
-    updateAutomationRunUI(script.id);
+    void refreshAutomationDesktopMenus();
+    try {
+      if (run.nativeReady) {
+        await invoke("end_automation_operation", { runId: run.runId }).catch(() => {});
+      }
+      await releaseAutomationSafety();
+    } finally {
+      finishRun();
+      updateAutomationRunUI(script.id);
+    }
   }
 }
 
 // 执行单个步骤，录制类步骤负责自己的资源回收。
 async function runStep(step, run) {
   if (step.type === "click") {
-    await invoke("simulate_click", { x: Number(step.x) || 0, y: Number(step.y) || 0 });
+    await invoke("simulate_click", { x: Number(step.x) || 0, y: Number(step.y) || 0, runId: run.runId });
   } else if (step.type === "keys") {
     const keys = (step.keys || []).map((key) => ({
       keycode: Number(key.keycode) || 0,
       flags: Number(key.flags) || 0,
     }));
-    if (keys.length) await invoke("simulate_keys", { keys });
+    if (keys.length) await invoke("simulate_keys", { keys, runId: run.runId });
   } else if (step.type === "wait") {
     await cancellableAutomationWait(step.ms, run);
   } else if (step.type === "capture") {
-    run.lastSavedPath = await doCapture({ notify: false, throwOnError: true });
+    run.lastSavedPath = await doCapture({ notify: false, throwOnError: true, runId: run.runId });
   } else if (step.type === "record") {
     const { x, y, width, height } = regionPayload();
     const dir = $("dir").value.trim();
@@ -160,6 +195,7 @@ async function runStep(step, run) {
     if (recordingActive || recordingBusy || automationRecordingRun) throw new Error("当前已有录屏正在进行");
     setAutomationRecordingRun(run);
     await hideIndicatorForRecording();
+    if (run.cancelled) return;
     try {
       await invoke("start_recording", {
         x,
@@ -168,6 +204,7 @@ async function runStep(step, run) {
         height,
         dir,
         prefix: $("prefix").value || "recording",
+        runId: run.runId,
       });
     } catch (error) {
       await restoreIndicatorAfterRecording();
@@ -176,6 +213,7 @@ async function runStep(step, run) {
     run.recording = true;
     setAutomationRecordingRun(run);
     setRecordingActive(true);
+    startRecordingMonitor();
     updateRecUI();
     try {
       await cancellableAutomationWait(
@@ -192,7 +230,7 @@ async function runStep(step, run) {
 export async function stopAutomation(id) {
   const run = automationRuns.get(id);
   if (!run) return;
-  run.cancelled = true;
+  run.requestCancel();
   updateAutomationRunUI(id);
   await run.finished;
 }

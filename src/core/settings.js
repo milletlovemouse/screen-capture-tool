@@ -21,6 +21,9 @@ export function loadSettings() {
     if (s.prefix) $("prefix").value = s.prefix;
     if (s.shortcut) $("shortcut").value = s.shortcut;
     if (s.recordShortcut) $("shortcut-record").value = s.recordShortcut;
+    if (s.regionShortcut) $("shortcut-region").value = s.regionShortcut;
+    if (s.fullscreenShortcut) $("shortcut-fullscreen").value = s.fullscreenShortcut;
+    if (s.indicatorShortcut) $("shortcut-indicator").value = s.indicatorShortcut;
     if (s.collapsed) document.querySelector(".layout").classList.add("collapsed");
     setPinned(!!s.pinned);
     setAutomationScripts(normalizeAutomationScripts(s.automations));
@@ -40,6 +43,9 @@ export function saveSettings() {
     prefix: $("prefix").value,
     shortcut: $("shortcut").value,
     recordShortcut: $("shortcut-record").value,
+    regionShortcut: $("shortcut-region").value,
+    fullscreenShortcut: $("shortcut-fullscreen").value,
+    indicatorShortcut: $("shortcut-indicator").value,
     collapsed: document.querySelector(".layout").classList.contains("collapsed"),
     pinned,
     automations: automationScripts,

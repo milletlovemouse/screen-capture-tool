@@ -124,6 +124,46 @@ h3 {
   white-space: nowrap;
 }
 
+/* 图标与操作名称同排居中，快捷键单独位于名称下方。 */
+.region-card .btn-icon {
+  display: inline-grid;
+  grid-template-columns: 15px auto;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.region-card .btn-icon > svg {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.region-button-label {
+  display: contents;
+}
+
+.region-button-label > span {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.region-shortcut {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  opacity: 0.75;
+}
+
+.region-shortcut[hidden] {
+  display: none;
+}
+
 @keyframes rec-pulse {
   0%,
   100% {
@@ -191,4 +231,3 @@ h3 {
 .view-title-row button {
   padding: 7px 12px;
 }
-

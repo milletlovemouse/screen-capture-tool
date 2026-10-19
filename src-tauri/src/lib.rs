@@ -14,15 +14,18 @@ pub use platform::key_mapping;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(commands::automation_cancel::AutomationState::default())
         .manage(RecState(Mutex::new(None)))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .setup(|_| {
+        .setup(|_app| {
             #[cfg(target_os = "macos")]
-            platform::dock_menu::install()?;
+            {
+                platform::dock_menu::install()?;
+            }
             Ok(())
         })
         .on_menu_event(|_app, _event| {
@@ -30,6 +33,10 @@ pub fn run() {
             platform::dock_menu::handle_menu_event(_app, _event);
         })
         .invoke_handler(tauri::generate_handler![
+            commands::update_dock_automation_menu,
+            commands::automation_cancel::begin_automation_operation,
+            commands::automation_cancel::cancel_automation_operation,
+            commands::automation_cancel::end_automation_operation,
             commands::capture::capture_region,
             commands::capture::capture_around,
             commands::input::cursor_position,

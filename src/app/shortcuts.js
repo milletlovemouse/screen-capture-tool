@@ -8,6 +8,7 @@ import { $, setStatus } from "../core/dom.js";
 import { saveSettings } from "../core/settings.js";
 import { doCapture } from "./capture.js";
 import { toggleRecording } from "./recording.js";
+import { openRegionPicker, useFullscreenRegion, toggleIndicator } from "./region.js";
 import { handleKeysRecordingKeydown } from "./automation/steps.js";
 import { handleAutomationShortcutKeydown } from "./automation/shortcuts.js";
 import {
@@ -33,7 +34,24 @@ export const SHORTCUTS = {
     active: null,
     action: () => toggleRecording(),
   },
+  region: {
+    input: "shortcut-region", btn: "record-shortcut-region", active: null,
+    button: "pick-region", action: () => openRegionPicker(),
+  },
+  fullscreen: {
+    input: "shortcut-fullscreen", btn: "record-shortcut-fullscreen", active: null,
+    button: "use-fullscreen", action: () => useFullscreenRegion(),
+  },
+  indicator: {
+    input: "shortcut-indicator", btn: "record-shortcut-indicator", active: null,
+    button: "toggle-indicator", action: () => toggleIndicator(),
+  },
 };
+
+// 选区快捷键复用设置页的录制、冲突保护和注册流程。
+export async function registerRegionShortcuts() {
+  for (const key of ["region", "fullscreen", "indicator"]) await registerShortcut(key);
+}
 
 // 将配置的组合键转为 macOS 常用符号，保留原始值供悬停查看。
 export function showHomeShortcut(element, shortcut, label = "快捷键") {
@@ -49,6 +67,12 @@ export function showHomeShortcut(element, shortcut, label = "快捷键") {
 export function updateHomeShortcuts() {
   for (const [key, cfg] of Object.entries(SHORTCUTS)) {
     const value = recordingKey === key ? prevShortcut : $(cfg.input).value;
+    if (cfg.button) {
+      const button = $(cfg.button);
+      if (button) button.title = `快捷键：${shortcutText(cfg.active || value)}`;
+      showHomeShortcut($(`home-${key}-shortcut`), cfg.active || value);
+      continue;
+    }
     showHomeShortcut($(`home-${key}-shortcut`), value, key === "record" ? "开始 / 停止" : "快捷键");
   }
 }
@@ -72,7 +96,9 @@ export async function registerShortcut(key) {
       if (event.state === "Released") { pressed = false; return; }
       if (event.state !== "Pressed" || pressed) return;
       pressed = true;
-      if (!recordingKey && !automationShortcutRecording && !keysRecording) cfg.action();
+      if (!recordingKey && !automationShortcutRecording && !keysRecording) {
+        void Promise.resolve().then(cfg.action).catch((error) => setStatus(`操作失败：${error}`, "err"));
+      }
     });
     try {
       if (previous && previous !== accel && (await isRegistered(previous))) {
@@ -83,9 +109,15 @@ export async function registerShortcut(key) {
       throw error;
     }
     cfg.active = accel;
+    updateHomeShortcuts();
     saveSettings();
     setStatus(`快捷键已注册：${accel}`, "ok");
   } catch (e) {
+    if (cfg.button && previous) {
+      $(cfg.input).value = previous;
+      updateHomeShortcuts();
+      saveSettings();
+    }
     setStatus(`快捷键注册失败：${e}`, "err");
   }
 }
@@ -167,7 +199,7 @@ export function onRecordKeydown(e) {
   $(cfg.input).value = accel;
   const key = recordingKey;
   stopRecording(false);
-  saveSettings();
+  if (!cfg.button) saveSettings();
   // 录制完成后自动注册
   registerShortcut(key);
 }

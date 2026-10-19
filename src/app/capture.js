@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { onAction, registerActionTypes } from "@tauri-apps/plugin-notification";
-import { $, setStatus, sleep } from "../core/dom.js";
-import { getIndicator, regionPayload } from "./region.js";
+import { $, setStatus } from "../core/dom.js";
+import { regionPayload } from "./region.js";
+import { acquireCaptureOverlays } from "./capture-overlays.js";
 
 let notificationActionsReady = null;
 const SAVED_FILE_ACTION_TYPE = "saved-file";
@@ -44,7 +45,7 @@ export async function notifySavedFile(title, path, body) {
 }
 
 // 执行一次截图：读取区域与命名，调用后端命令并自增编号
-export async function doCapture({ notify = true, throwOnError = false } = {}) {
+export async function doCapture({ notify = true, throwOnError = false, runId } = {}) {
   const dir = $("dir").value.trim();
   if (!dir) {
     setStatus("请先选择保存目录", "err");
@@ -54,21 +55,9 @@ export async function doCapture({ notify = true, throwOnError = false } = {}) {
   const { x, y, width, height } = regionPayload();
   const prefix = $("prefix").value || "screenshot";
 
-  // 截图前临时隐藏选区框，避免红框被拍进图里
-  let indicator = null;
-  let indicatorWasVisible = false;
+  let releaseOverlays;
   try {
-    indicator = await getIndicator();
-    if (indicator && (await indicator.isVisible())) {
-      indicatorWasVisible = true;
-      await indicator.hide();
-      await sleep(80);
-    }
-  } catch {
-    // 选区窗口查询失败时仍继续截图，避免影响核心操作。
-  }
-
-  try {
+    releaseOverlays = await acquireCaptureOverlays();
     const path = await invoke("capture_region", {
       x,
       y,
@@ -76,6 +65,7 @@ export async function doCapture({ notify = true, throwOnError = false } = {}) {
       height,
       dir,
       prefix,
+      ...(runId ? { runId } : {}),
     });
     setStatus(`已保存：${path}`, "ok");
     if (notify) {
@@ -91,12 +81,6 @@ export async function doCapture({ notify = true, throwOnError = false } = {}) {
     if (throwOnError) throw e;
     return null;
   } finally {
-    if (indicatorWasVisible && indicator) {
-      try {
-        await indicator.show();
-      } catch {
-        // 恢复窗口失败不应覆盖已经完成的截图结果。
-      }
-    }
+    if (releaseOverlays) await releaseOverlays();
   }
 }

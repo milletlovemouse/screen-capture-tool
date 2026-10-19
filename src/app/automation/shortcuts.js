@@ -15,20 +15,55 @@ import {
   setAutomationShortcutRecording,
 } from "../../core/state.js";
 
-export async function unregisterAutomationShortcuts(id) {
+const automationShortcutOperations = new Map();
+
+// 同一脚本的原生注册与配置提交串行执行；失败不阻塞后续操作。
+function queueAutomationShortcutOperation(id, operation) {
+  const previous = automationShortcutOperations.get(id) || Promise.resolve();
+  const result = previous.then(operation);
+  const settled = result.then(() => {}, () => {});
+  automationShortcutOperations.set(id, settled);
+  void settled.then(() => {
+    if (automationShortcutOperations.get(id) === settled) automationShortcutOperations.delete(id);
+  });
+  return result;
+}
+
+// 仅在队列内部释放当前快捷键，避免嵌套排队造成死锁。
+async function releaseAutomationShortcut(id) {
   const active = automationActiveShortcuts.get(id);
   if (!active) return;
   if (await isRegistered(active)) await unregister(active);
   automationActiveShortcuts.delete(id);
 }
 
-export async function registerAutomationScriptShortcuts(script) {
+// 删除配置也在同一队列内提交，后续保存不能复活已删除脚本。
+export function unregisterAutomationShortcuts(id, commit = () => {}) {
+  return queueAutomationShortcutOperation(id, async () => {
+    await releaseAutomationShortcut(id);
+    commit();
+  });
+}
+
+// 注册成功后才提交配置；排队期间失效的脚本不再注册。
+export function registerAutomationScriptShortcuts(script, { isCurrent = () => true, commit = () => {} } = {}) {
+  const candidate = { id: script.id, shortcut: script.shortcut || "" };
+  return queueAutomationShortcutOperation(candidate.id, async () => {
+    if (!isCurrent()) return false;
+    if (!(await replaceAutomationShortcut(candidate))) return false;
+    commit();
+    return true;
+  });
+}
+
+// 先取得新键再释放旧键，冲突或释放失败时保留原注册。
+async function replaceAutomationShortcut(script) {
   const accel = script.shortcut || "";
   const previous = automationActiveShortcuts.get(script.id);
   if (previous === accel) return true;
   try {
     if (!accel) {
-      await unregisterAutomationShortcuts(script.id);
+      await releaseAutomationShortcut(script.id);
       return true;
     }
     // 新组合键成功后再注销旧键，冲突时仍可用原来的键停止脚本。
@@ -37,10 +72,14 @@ export async function registerAutomationScriptShortcuts(script) {
       if (event.state === "Released") { pressed = false; return; }
       if (event.state !== "Pressed" || pressed) return;
       pressed = true;
-      if (!recordingKey && !automationShortcutRecording && !keysRecording) void toggleAutomation(script.id);
+      if (!recordingKey && !automationShortcutRecording && !keysRecording) {
+        void toggleAutomation(script.id).catch((error) => {
+          setStatus(`脚本执行失败：${error}`, "err");
+        });
+      }
     });
     try {
-      await unregisterAutomationShortcuts(script.id);
+      await releaseAutomationShortcut(script.id);
     } catch (error) {
       await unregister(accel);
       throw error;
@@ -48,7 +87,7 @@ export async function registerAutomationScriptShortcuts(script) {
     automationActiveShortcuts.set(script.id, accel);
     return true;
   } catch (e) {
-    setStatus(`脚本已保存，但快捷键注册失败：${e}`, "err");
+    setStatus(`快捷键注册失败：${e}`, "err");
     return false;
   }
 }

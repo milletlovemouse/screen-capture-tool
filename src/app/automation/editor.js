@@ -29,10 +29,14 @@ import {
   setEditingAutomationId,
 } from "../../core/state.js";
 
+const automationEditorSaves = new Set();
+
+// 切换编辑对象前结束输入录制，避免继续写入旧草稿。
 export function openAutomationEditor(id) {
   const script = automationScripts.find((item) => item.id === id);
   if (!script) return;
   stopAutomationShortcutRecording();
+  stopKeysRecording();
   setEditingAutomationId(id);
   setEditingAutomationDraft(cloneAutomation(script));
   $("automation-editor").classList.remove("hidden");
@@ -140,31 +144,56 @@ function addAutomationStep(type) {
   renderAutomationSteps();
 }
 
+// 保存快照只在快捷键注册成功后提交，重复点击及已删除对象不再提交。
 export async function saveAutomationEditor() {
-  const script = getEditingAutomation();
-  if (!script) return;
+  const draft = getEditingAutomation();
+  if (!draft || automationEditorSaves.has(draft.id)) return;
   stopAutomationShortcutRecording();
+  stopKeysRecording();
   const name = $("automation-name").value.trim();
   if (!name) {
     setStatus("请填写脚本名称", "err");
     return;
   }
+  const saved = automationScripts.find((item) => item.id === draft.id);
+  if (!saved) return;
+  const script = cloneAutomation(draft);
   script.name = name;
   script.shortcut = $("automation-shortcut").value.trim();
-  const index = automationScripts.findIndex((item) => item.id === script.id);
-  if (index >= 0) {
-    script.runMode = automationScripts[index].runMode;
-    script.runCount = automationScripts[index].runCount;
-    automationScripts[index] = script;
+  const stepsSnapshot = JSON.stringify(draft.steps);
+  automationEditorSaves.add(script.id);
+  try {
+    await registerAutomationScriptShortcuts(script, {
+      isCurrent: () => automationScripts.includes(saved),
+      commit: () => {
+        const index = automationScripts.indexOf(saved);
+        script.runMode = saved.runMode;
+        script.runCount = saved.runCount;
+        automationScripts[index] = script;
+        // 异步保存结束时，不覆盖切换后的编辑器或等待期间的新输入。
+        if (editingAutomationDraft === draft &&
+            $("automation-name").value.trim() === name &&
+            $("automation-shortcut").value.trim() === script.shortcut &&
+            JSON.stringify(draft.steps) === stepsSnapshot) {
+          // 保留步骤对象，现有输入事件和录制目标仍绑定在当前草稿上。
+          draft.name = script.name;
+          draft.shortcut = script.shortcut;
+          draft.runMode = script.runMode;
+          draft.runCount = script.runCount;
+          const nameLabel = $("automation-editor-name");
+          if (nameLabel) nameLabel.textContent = script.name;
+        }
+        saveSettings();
+        renderAutomationList();
+        renderHomeAutomations();
+        setStatus(`脚本“${script.name}”已保存`, "ok");
+      },
+    });
+  } catch (error) {
+    setStatus(`脚本保存失败：${error}`, "err");
+  } finally {
+    automationEditorSaves.delete(script.id);
   }
-  setEditingAutomationDraft(cloneAutomation(script));
-  saveSettings();
-  const registered = await registerAutomationScriptShortcuts(script);
-  const nameLabel = $("automation-editor-name");
-  if (nameLabel) nameLabel.textContent = script.name;
-  renderAutomationList();
-  renderHomeAutomations();
-  if (registered) setStatus(`脚本“${script.name}”已保存`, "ok");
 }
 
 export function setupAutomation() {

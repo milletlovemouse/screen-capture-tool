@@ -9,6 +9,8 @@ use objc2::{
 use objc2_app_kit::{NSApplication, NSMenu};
 use tauri::{Emitter, Manager};
 
+use crate::commands::DockAutomationMenuItem;
+
 thread_local! {
     // AppKit 在主线程查询菜单；持续持有菜单，保证返回的原生指针有效。
     static DOCK_MENU: RefCell<Option<Menu>> = const { RefCell::new(None) };
@@ -27,6 +29,54 @@ unsafe extern "C-unwind" fn application_dock_menu(
     })
 }
 
+/// 构建完整 Dock 菜单，保留静态操作并按前端状态追加脚本。
+fn build_menu(items: &[DockAutomationMenuItem]) -> Result<Menu, Box<dyn std::error::Error>> {
+    let menu = Menu::new();
+    for (id, text) in [
+        ("dock.capture", "立即截图"),
+        ("dock.pick", "框选区域"),
+        ("dock.record", "开始/停止录屏"),
+        ("dock.toggle", "显示/隐藏选区框"),
+    ] {
+        menu.append(&MenuItem::with_id(id, text, true, None))?;
+    }
+    menu.append(&PredefinedMenuItem::separator())?;
+    for item in items {
+        let action = if item.stopping {
+            "正在停止"
+        } else if item.running {
+            "停止"
+        } else {
+            "启动"
+        };
+        menu.append(&MenuItem::with_id(
+            format!("dock.automation:{}", item.id),
+            format!("{action}：{}", item.name),
+            !item.stopping,
+            None,
+        ))?;
+    }
+    if !items.is_empty() {
+        menu.append(&PredefinedMenuItem::separator())?;
+    }
+    menu.append(&MenuItem::with_id(
+        "dock.settings",
+        "打开主窗口",
+        true,
+        None,
+    ))?;
+    // Dock 自带“退出”项，无需重复添加。
+    Ok(menu)
+}
+
+/// 在主线程完整构建成功后替换菜单，失败时保留原菜单。
+pub fn update_automation_menu(items: &[DockAutomationMenuItem]) -> Result<(), String> {
+    MainThreadMarker::new().ok_or("Dock 菜单必须在主线程更新")?;
+    let menu = build_menu(items).map_err(|error| error.to_string())?;
+    DOCK_MENU.with(|slot| *slot.borrow_mut() = Some(menu));
+    Ok(())
+}
+
 /// 补充 Tao delegate 的 Dock 菜单入口，保留其原有生命周期处理。
 pub fn install() -> Result<(), Box<dyn std::error::Error>> {
     let mtm = MainThreadMarker::new()
@@ -41,24 +91,7 @@ pub fn install() -> Result<(), Box<dyn std::error::Error>> {
     if class.instance_method(selector).is_some() {
         return Err(std::io::Error::other("应用已经注册 Dock 菜单，无法重复安装").into());
     }
-
-    let menu = Menu::new();
-    for (id, text) in [
-        ("dock.capture", "立即截图"),
-        ("dock.pick", "框选区域"),
-        ("dock.record", "开始/停止录屏"),
-        ("dock.toggle", "显示/隐藏选区框"),
-    ] {
-        menu.append(&MenuItem::with_id(id, text, true, None))?;
-    }
-    menu.append(&PredefinedMenuItem::separator())?;
-    menu.append(&MenuItem::with_id(
-        "dock.settings",
-        "打开主窗口",
-        true,
-        None,
-    ))?;
-    // Dock 自带“退出”项，无需重复添加。
+    let menu = build_menu(&[])?;
 
     // SAFETY: 回调签名与 applicationDockMenu: 的 id(id, SEL, id) ABI 一致；
     // 仅补充尚未实现的 selector，不替换 Tao delegate 或它已有的方法。

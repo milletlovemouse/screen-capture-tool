@@ -218,6 +218,52 @@ test("global capture shortcut conflicts preserve the active key", async () => {
   assert.equal(h.evaluate("SHORTCUTS.capture.active"), "Alt+A");
 });
 
+test("an unavailable emergency shortcut blocks scripts without a registered toggle", async () => {
+  const h = harness();
+  h.shortcuts.set("Escape", () => {});
+  await h.run({ steps: [{ type: "click", x: 10, y: 20 }] });
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.dialogs.length, 1);
+  assert.match(h.dialogs[0].text, /请先为该自动化设置并成功注册启停快捷键/);
+  assert.equal(h.evaluate("automationRuns.size"), 0);
+});
+
+test("a registered toggle shortcut allows running when Escape is unavailable", async () => {
+  const h = harness();
+  h.shortcuts.set("Escape", () => {});
+  const script = {
+    id: "test",
+    name: "test",
+    shortcut: "CommandOrControl+F8",
+    runMode: "once",
+    steps: [{ type: "click", x: 10, y: 20 }],
+  };
+  h.evaluate(`automationActiveShortcuts.set("test", "CommandOrControl+F8")`);
+  h.shortcuts.set("CommandOrControl+F8", () => {});
+  await h.run(script);
+  assert.deepEqual(h.calls.map((call) => call.command), ["simulate_click"]);
+  assert.equal(h.dialogs.length, 0);
+});
+
+test("double Escape stops a running automation and releases its safety UI", async () => {
+  const h = harness();
+  const execution = h.run({
+    runMode: "loop",
+    steps: [{ type: "wait", ms: 1000 }],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const emergency = h.shortcuts.get("Escape");
+  assert.equal(typeof emergency, "function");
+  emergency({ state: "Pressed" });
+  emergency({ state: "Released" });
+  emergency({ state: "Pressed" });
+  emergency({ state: "Released" });
+  await execution;
+  assert.equal(h.shortcuts.has("Escape"), false);
+  assert.equal(h.windows.has("automation-status"), false);
+  assert.equal(h.evaluate("automationRuns.size"), 0);
+});
+
 test("zero-wait loops yield and can be stopped without another round", async () => {
   const h = harness();
   const execution = h.run({ runMode: "loop", steps: [{ type: "wait", ms: 0 }] });
@@ -233,7 +279,10 @@ test("stopping during timed recording finalizes exactly once", async () => {
   const execution = h.run({ runMode: "loop", steps: [
     { type: "record", duration: 60 }, { type: "click", x: 1, y: 1 },
   ] });
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  // 等原生启动完成再停止；准备阶段取消应当完全不启动录屏。
+  for (let i = 0; i < 100 && !h.calls.some((call) => call.command === "start_recording"); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
   await Promise.all([h.stop(), h.stop()]);
   await execution;
   assert.deepEqual(h.calls.map((call) => call.command), ["start_recording", "stop_recording"]);

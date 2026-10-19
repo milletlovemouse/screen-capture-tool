@@ -395,6 +395,16 @@ export function handleKeysRecordingKeydown(e) {
 
 // 打开全屏取点窗记录点击步骤的屏幕坐标
 export async function openPointPicker(step) {
+  return withCaptureOverlayLock(() => openPointPickerLocked(step)).catch((error) => {
+    setPointPickingStep(null);
+    setStatus(`无法打开取点窗口：${error}`, "err");
+  });
+}
+
+// 在捕获锁内等待取点窗创建完成，避免与录屏启动交错。
+async function openPointPickerLocked(step) {
+  if (captureOverlaysBlocked()) return;
+  if (await WebviewWindow.getByLabel("overlay")) return;
   if (pointPickingStep) return;
   setPointPickingStep(step);
   const existing = await WebviewWindow.getByLabel("point-picker");
@@ -424,5 +434,7 @@ export async function openPointPicker(step) {
   picker.once("tauri://destroyed", () => {
     setPointPickingStep(null);
   });
+  await waitCaptureWindowCreated(picker);
   setStatus("请在屏幕上点击目标位置，按 Esc 取消", "");
 }
+import { withCaptureOverlayLock, captureOverlaysBlocked, waitCaptureWindowCreated } from "../capture-overlays.js";

@@ -1,16 +1,61 @@
 import { invoke } from "@tauri-apps/api/core";
-import { $, setStatus, sleep } from "../core/dom.js";
+import { $, setStatus } from "../core/dom.js";
 import { notifySavedFile } from "./capture.js";
-import { broadcastRegion, getIndicator, regionPayload } from "./region.js";
+import { regionPayload } from "./region.js";
+import { acquireCaptureOverlays } from "./capture-overlays.js";
 import {
   automationRecordingRun,
   recordingActive,
   recordingBusy,
-  recordingHidIndicator,
   setRecordingActive,
   setRecordingBusy,
-  setRecordingHidIndicator,
 } from "../core/state.js";
+
+let recordingOverlayLease = null;
+let recordingMonitorTimer = null;
+let recordingMonitorGeneration = 0;
+
+// 用代次丢弃旧查询结果；停止/重启期间不会由旧轮询覆盖新录制状态。
+export function startRecordingMonitor() {
+  stopRecordingMonitor();
+  const generation = recordingMonitorGeneration;
+  const check = async () => {
+    try {
+      if (!recordingBusy && recordingActive) {
+        const active = await invoke("is_recording");
+        if (generation !== recordingMonitorGeneration) return;
+        if (active === false && !recordingBusy) {
+          setRecordingBusy(true);
+          const run = automationRecordingRun;
+          if (run) {
+            run.recording = false;
+            run.cancelled = true;
+          }
+          setRecordingActive(false);
+          try {
+            await restoreIndicatorAfterRecording();
+          } finally {
+            setRecordingBusy(false);
+            updateRecUI();
+          }
+          return;
+        }
+      }
+    } catch {
+      /* 查询失败不等同于录制已结束，下次继续确认。 */
+    }
+    if (generation === recordingMonitorGeneration && recordingActive) {
+      recordingMonitorTimer = setTimeout(check, 500);
+    }
+  };
+  recordingMonitorTimer = setTimeout(check, 500);
+}
+
+export function stopRecordingMonitor() {
+  recordingMonitorGeneration += 1;
+  if (recordingMonitorTimer) clearTimeout(recordingMonitorTimer);
+  recordingMonitorTimer = null;
+}
 
 // 按当前录屏状态刷新首页按钮
 export function updateRecUI() {
@@ -24,31 +69,14 @@ export function updateRecUI() {
 
 // 录屏前隐藏常驻选区框，避免红色虚线被录进画面
 export async function hideIndicatorForRecording() {
-  try {
-    const ind = await getIndicator();
-    if (ind && (await ind.isVisible())) {
-      setRecordingHidIndicator(true);
-      await ind.hide();
-      await sleep(60);
-    }
-  } catch {
-    /* 无选区框或查询失败时忽略，不影响录屏 */
-  }
+  if (!recordingOverlayLease) recordingOverlayLease = await acquireCaptureOverlays();
 }
 
 // 录屏结束后恢复之前显示的选区框
 export async function restoreIndicatorAfterRecording() {
-  if (!recordingHidIndicator) return;
-  setRecordingHidIndicator(false);
-  try {
-    const ind = await getIndicator();
-    if (ind) {
-      await ind.show();
-      broadcastRegion();
-    }
-  } catch {
-    /* 恢复失败时忽略 */
-  }
+  const release = recordingOverlayLease;
+  recordingOverlayLease = null;
+  if (release) await release();
 }
 
 // 开始/停止录屏（录制预设区域，无区域则录主屏）
@@ -66,6 +94,7 @@ export async function toggleRecording() {
   updateRecUI();
   try {
     if (recordingActive) {
+      stopRecordingMonitor();
       let path;
       try {
         path = await invoke("stop_recording");
@@ -90,6 +119,7 @@ export async function toggleRecording() {
         throw e;
       }
       setRecordingActive(true);
+      startRecordingMonitor();
       updateRecUI();
       setStatus("正在录屏…（再次点击停止并保存）", "ok");
     }

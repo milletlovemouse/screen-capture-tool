@@ -1,12 +1,12 @@
 {
   "name": "screen-capture-tool",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/tests/automation.test.js src/tests/mac-keycodes.test.js src/tests/menu.test.js src/tests/notification.test.js src/tests/permissions.test.js src/tests/platform.test.js src/tests/region-geometry.test.js",
+    "test": "node --test src/tests/*.test.js",
     "preview": "vite preview",
     "tauri": "tauri"
   },

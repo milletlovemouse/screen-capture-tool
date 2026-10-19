@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>自动化运行状态</title>
+    <link rel="stylesheet" href="/src/styles/index.css" />
+  </head>
+  <body class="automation-status-body">
+    <div class="automation-status-bar" role="status" aria-live="polite">
+      <span class="automation-status-running">
+        <span class="automation-status-activity" aria-hidden="true">
+          <i></i><i></i><i></i><i></i>
+        </span>
+        <span>自动化运行中</span>
+      </span>
+      <span class="automation-status-hint" id="automation-status-shortcut">使用启停快捷键停止</span>
+      <span class="automation-status-hint" id="automation-status-escape" hidden>
+        <span>连按两次</span>
+        <kbd>Esc</kbd>
+        <span>停止</span>
+      </span>
+    </div>
+    <script type="module" src="/src/windows/automation-status.js"></script>
+  </body>
+</html>

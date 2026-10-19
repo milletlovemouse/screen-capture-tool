@@ -2,6 +2,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { $, setStatus } from "../core/dom.js";
 import { saveSettings } from "../core/settings.js";
 import { refreshPermissions } from "./permissions.js";
+import { stopRecording } from "./shortcuts.js";
+import { stopAutomationShortcutRecording } from "./automation/shortcuts.js";
+import { stopKeysRecording } from "./automation/steps.js";
 import { pinned, setPinned } from "../core/state.js";
 
 // 左侧菜单切换首页/设置/自动化/关于视图
@@ -11,6 +14,12 @@ export function setupNav() {
   items.forEach((btn) => {
     btn.addEventListener("click", () => {
       const view = btn.dataset.view;
+      if (!btn.classList.contains("active")) {
+        stopRecording(true);
+        stopAutomationShortcutRecording();
+        stopKeysRecording();
+        setStatus("");
+      }
       items.forEach((b) => b.classList.toggle("active", b === btn));
       views.forEach((section) => {
         section.classList.toggle("hidden", section.id !== `view-${view}`);
@@ -31,17 +40,12 @@ export function setupSidebar() {
   $("pin-toggle").addEventListener("click", togglePin);
 }
 
-// 置顶：alwaysOnTop + 跨桌面可见（切换桌面仍在最上层）
+// 设置主窗口置顶状态。
 async function togglePin() {
   const next = !pinned;
   const w = getCurrentWindow();
   try {
     await w.setAlwaysOnTop(next);
-    try {
-      await w.setVisibleOnAllWorkspaces(next);
-    } catch {
-      /* 非 macOS 可忽略 */
-    }
     setPinned(next);
     $("pin-toggle").classList.toggle("active", pinned);
     setStatus(pinned ? "已置顶" : "已取消置顶", "ok");
