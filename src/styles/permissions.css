@@ -1,6 +1,5 @@
-/* 设置卡片更有层次 */
 .card {
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color 0.12s ease;
 }
 
 .card:hover {
@@ -95,4 +94,3 @@
   color: #f0b968;
   line-height: 1.6;
 }
-

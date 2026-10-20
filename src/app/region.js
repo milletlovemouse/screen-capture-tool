@@ -102,6 +102,7 @@ async function openRegionPickerLocked() {
   });
   try {
     await waitCaptureWindowCreated(overlay);
+    await invoke("raise_capture_auxiliary_window", { label: "overlay" });
   } catch (error) {
     if (wasVisible) await mainWin.show();
     throw error;
@@ -130,6 +131,7 @@ export async function createIndicator() {
     setStatus(`无法打开选区框：${e.payload}`, "err");
   });
   await waitCaptureWindowCreated(win);
+  await invoke("raise_capture_auxiliary_window", { label: "indicator" });
   return win;
 }
 
@@ -142,6 +144,7 @@ export async function ensureIndicator() {
     const win = await getIndicator();
     if (win) {
       await win.show();
+      await invoke("raise_capture_auxiliary_window", { label: "indicator" });
       broadcastRegion();
     } else {
       await createIndicator();
@@ -181,6 +184,7 @@ async function toggleIndicatorLocked() {
       setStatus("已隐藏选区框", "ok");
     } else {
       await win.show();
+      await invoke("raise_capture_auxiliary_window", { label: "indicator" });
       broadcastRegion();
       setStatus("已显示选区框", "ok");
     }

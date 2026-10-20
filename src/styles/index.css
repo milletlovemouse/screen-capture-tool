@@ -2,7 +2,6 @@
 @import "./base.css";
 @import "./layout.css";
 @import "./about.css";
-@import "./logo.css";
 @import "./home.css";
 @import "./permissions.css";
 @import "./automation-list.css";
@@ -13,4 +12,3 @@
 @import "./overlay.css";
 @import "./indicator.css";
 @import "./automation-status.css";
-@import "./buttons.css";

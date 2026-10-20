@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { $, setStatus } from "../core/dom.js";
 import { saveSettings } from "../core/settings.js";
 import { refreshPermissions } from "./permissions.js";
@@ -46,6 +47,9 @@ async function togglePin() {
   const w = getCurrentWindow();
   try {
     await w.setAlwaysOnTop(next);
+    if (next) {
+      await invoke("raise_capture_auxiliary_window", { label: "indicator" });
+    }
     setPinned(next);
     $("pin-toggle").classList.toggle("active", pinned);
     setStatus(pinned ? "已置顶" : "已取消置顶", "ok");

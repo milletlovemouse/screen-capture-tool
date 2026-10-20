@@ -5,6 +5,7 @@ pub mod files;
 pub mod input;
 pub mod permissions;
 pub mod recording;
+pub mod window_level;
 
 /// 前端同步的 Dock 自动化脚本及运行状态。
 // 跨平台保留相同 IPC 参数结构，字段仅由 macOS Dock 实现读取。

@@ -131,7 +131,7 @@ input:focus {
 }
 
 button {
-  background: linear-gradient(180deg, #659bff, var(--accent) 55%, #3c73df);
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -141,7 +141,7 @@ button {
 }
 
 button.ghost {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015));
+  background: transparent;
   border: 1px solid var(--border);
   color: var(--fg);
 }

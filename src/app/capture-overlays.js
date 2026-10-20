@@ -1,4 +1,5 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
 import { sleep } from "../core/dom.js";
 import { automationRuns, recordingActive, recordingBusy, automationRecordingRun } from "../core/state.js";
 
@@ -87,7 +88,12 @@ async function restoreCaptureOverlayWindows() {
     if (label === "automation-status" && !automationRuns.size) continue;
     try {
       const win = await WebviewWindow.getByLabel(label);
-      if (win) await win.show();
+      if (win) {
+        await win.show();
+        if (label === "indicator") {
+          await invoke("raise_capture_auxiliary_window", { label });
+        }
+      }
     } catch {
       /* 恢复失败不能覆盖捕获结果，也不能阻塞其他租约释放 */
     }

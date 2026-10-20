@@ -105,7 +105,8 @@
 
 .automation-editor input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.1);
+  outline: 2px solid rgba(79, 140, 255, 0.25);
+  outline-offset: 1px;
 }
 
 .automation-editor input::placeholder {
@@ -188,4 +189,3 @@
   color: #83899a;
   font-size: 13px;
 }
-

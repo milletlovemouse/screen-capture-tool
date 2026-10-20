@@ -45,6 +45,7 @@ pub fn run() {
             commands::recording::start_recording,
             commands::recording::stop_recording,
             commands::recording::is_recording,
+            commands::window_level::raise_capture_auxiliary_window,
             commands::files::reveal_saved_file,
             commands::files::open_external_url,
             commands::permissions::check_permissions,

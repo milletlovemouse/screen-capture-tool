@@ -64,6 +64,7 @@ async function initCover() {
     /* 不支持时退回 CSS 的 crosshair */
   }
   await self.show();
+  await invoke("raise_capture_auxiliary_window", { label: "overlay" });
   await self.setFocus();
   const position = await self.innerPosition();
   const scale = await self.scaleFactor();
