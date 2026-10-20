@@ -44,10 +44,11 @@ async function initCover() {
     if (!monitor) throw new Error("无法获取主显示器，已取消框选");
     await self.setPosition(monitor.position);
     await self.setSize(monitor.size);
-    await self.setFullscreen(true);
+    const innerSize = await self.innerSize();
+    const scale = await self.scaleFactor();
     bounds = {
-      width: monitor.size.width / monitor.scaleFactor,
-      height: monitor.size.height / monitor.scaleFactor,
+      width: Math.round(innerSize.width / scale),
+      height: Math.round(innerSize.height / scale),
     };
     // Windows 透明窗口保留极低 alpha 命中面，避免空白区域点击穿透。
     document.body.classList.add("overlay-body-windows");

@@ -20,11 +20,12 @@ function overlayHarness(isMac = false) {
     scaleFactor: 1.5,
   };
   const self = Object.fromEntries(
-    ["setPosition", "setSize", "setFullscreen", "setAlwaysOnTop",
+    ["setPosition", "setSize", "setAlwaysOnTop",
       "setVisibleOnAllWorkspaces", "setCursorIcon", "show", "setFocus", "close"]
       .map((name) => [name, async (...args) => { calls.push([name, ...args]); }])
   );
   self.innerPosition = async () => monitor.position;
+  self.innerSize = async () => monitor.size;
   self.scaleFactor = async () => monitor.scaleFactor;
   const context = vm.createContext({
     IS_MAC: isMac,
@@ -56,13 +57,14 @@ function overlayHarness(isMac = false) {
   return { calls, handlers, captured, classes, monitor, context };
 }
 
-test("Windows overlay uses physical primary monitor bounds then fullscreen before showing", async () => {
+test("Windows overlay uses physical monitor bounds without native fullscreen", async () => {
   const h = overlayHarness();
   await vm.runInContext("initCover()", h.context);
-  assert.deepEqual(h.calls.slice(0, 3), [
-    ["setPosition", h.monitor.position], ["setSize", h.monitor.size], ["setFullscreen", true],
+  assert.deepEqual(h.calls.slice(0, 2), [
+    ["setPosition", h.monitor.position], ["setSize", h.monitor.size],
   ]);
-  assert.ok(h.calls.findIndex(([name]) => name === "show") > 2);
+  assert.equal(h.calls.some(([name]) => name === "setFullscreen"), false);
+  assert.ok(h.calls.findIndex(([name]) => name === "show") > 1);
   assert.equal(h.classes.has("overlay-body-windows"), true);
   assert.equal(vm.runInContext("bounds.height", h.context), 960);
 });
