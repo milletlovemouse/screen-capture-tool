@@ -5,6 +5,10 @@
   overflow: hidden;
 }
 
+.window-drag-region {
+  display: none;
+}
+
 .sidebar {
   width: 160px;
   flex-shrink: 0;
@@ -183,4 +187,27 @@
   flex: 1;
   overflow-y: auto;
   padding: 18px 20px;
+}
+
+/* macOS 透明标题栏覆盖在内容上方，左右区域各自延续原有背景色。 */
+.platform-macos .window-drag-region {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  right: 0;
+  left: 72px;
+  display: block;
+  height: 36px;
+}
+
+.platform-macos .sidebar {
+  padding-top: 44px;
+}
+
+.platform-macos .layout.collapsed .sidebar {
+  padding-top: 44px;
+}
+
+.platform-macos .content {
+  padding-top: 44px;
 }

@@ -14,10 +14,12 @@
     "windows": [
       {
         "label": "main",
-        "title": "截图工具",
+        "title": "",
         "width": 660,
         "height": 520,
-        "resizable": true
+        "resizable": true,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {

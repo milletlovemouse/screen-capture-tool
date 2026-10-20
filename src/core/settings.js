@@ -8,6 +8,16 @@ import {
 import { normalizeAutomationScripts } from "../app/automation/model.js";
 
 const STORE_KEY = "sct-settings";
+let closeAction = "";
+
+export function getCloseAction() {
+  return closeAction;
+}
+
+export function setCloseAction(value) {
+  closeAction = value === "tray" || value === "quit" ? value : "";
+  saveSettings();
+}
 
 // 读取本地持久化设置并回填界面
 export function loadSettings() {
@@ -25,6 +35,7 @@ export function loadSettings() {
     if (s.fullscreenShortcut) $("shortcut-fullscreen").value = s.fullscreenShortcut;
     if (s.indicatorShortcut) $("shortcut-indicator").value = s.indicatorShortcut;
     if (s.collapsed) document.querySelector(".layout").classList.add("collapsed");
+    closeAction = s.closeAction === "tray" || s.closeAction === "quit" ? s.closeAction : "";
     setPinned(!!s.pinned);
     setAutomationScripts(normalizeAutomationScripts(s.automations));
   } catch {
@@ -47,6 +58,7 @@ export function saveSettings() {
     fullscreenShortcut: $("shortcut-fullscreen").value,
     indicatorShortcut: $("shortcut-indicator").value,
     collapsed: document.querySelector(".layout").classList.contains("collapsed"),
+    closeAction,
     pinned,
     automations: automationScripts,
   };

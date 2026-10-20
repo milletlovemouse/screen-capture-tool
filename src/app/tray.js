@@ -1,16 +1,22 @@
 import { exit, defaultWindowIcon } from "@tauri-apps/api/app";
-import { Menu } from "@tauri-apps/api/menu";
+import { IconMenuItem, Menu, MenuItem, NativeIcon } from "@tauri-apps/api/menu";
 import { invoke } from "@tauri-apps/api/core";
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Image as TauriImage } from "@tauri-apps/api/image";
 import trayIconUrl from "../../tray-icon.svg?url";
 import { setStatus } from "../core/dom.js";
-import { automationScripts, automationRuns } from "../core/state.js";
+import {
+  automationScripts,
+  automationRuns,
+  recordingActive,
+  recordingBusy,
+} from "../core/state.js";
 import { IS_MAC } from "../shared/platform.js";
 import { doCapture } from "./capture.js";
+import { setDesktopMenuRefresh } from "./desktop-menu-state.js";
 import { toggleRecording } from "./recording.js";
-import { openRegionPicker, toggleIndicator } from "./region.js";
+import { getIndicator, openRegionPicker, toggleIndicator } from "./region.js";
 
 let desktopTray = null;
 let desktopTrayMenu = null;
@@ -36,51 +42,146 @@ function desktopAutomationItems() {
   });
 }
 
+async function desktopMenuState() {
+  let indicatorVisible = false;
+  try {
+    const indicator = await getIndicator();
+    indicatorVisible = Boolean(indicator && await indicator.isVisible());
+  } catch {
+    /* 窗口正在销毁时按隐藏状态刷新。 */
+  }
+  return {
+    items: desktopAutomationItems(),
+    recordingActive,
+    recordingBusy,
+    indicatorVisible,
+  };
+}
+
+function desktopMenuItem(id, text, icon, options = {}) {
+  const { action, ...itemOptions } = options;
+  return {
+    id,
+    text,
+    ...(IS_MAC ? { icon } : {}),
+    ...itemOptions,
+    ...(!IS_MAC && action ? { action } : {}),
+  };
+}
+
 // 构造托盘菜单，脚本操作始终按稳定 ID 分发。
-async function createDesktopTrayMenu(items) {
-  return Menu.new({
-    items: [
-      ...[
-        ["capture", "立即截图"],
-        ["pick", "框选区域"],
-        ["record", "开始/停止录屏"],
-        ["toggle", "显示/隐藏选区框"],
-      ].map(([id, text]) => ({ id, text, action: () => handleDesktopMenuAction(id) })),
-      ...(items.length ? [
+async function createDesktopTrayMenu({
+  items,
+  recordingActive: isRecording,
+  recordingBusy: isRecordingBusy,
+  indicatorVisible,
+}) {
+  const menuItems = [];
+  const menuItem = async (...args) => {
+    const options = desktopMenuItem(...args);
+    const item = await (IS_MAC ? IconMenuItem : MenuItem).new(options);
+    menuItems.push(item);
+    return item;
+  };
+  const recordingText = isRecordingBusy
+    ? isRecording ? "正在停止录屏" : "正在开始录屏"
+    : isRecording ? "停止录屏" : "开始录屏";
+  const recordingIcon = isRecordingBusy
+    ? NativeIcon.StatusPartiallyAvailable
+    : isRecording ? NativeIcon.StopProgress : NativeIcon.StatusAvailable;
+  try {
+    const menu = await Menu.new({
+      items: [
+        ...await Promise.all([
+        ["capture", "立即截图", NativeIcon.QuickLook],
+        ["pick", "框选区域", NativeIcon.EnterFullScreen],
+        [
+          "record",
+          recordingText,
+          recordingIcon,
+        ],
+        [
+          "toggle",
+          indicatorVisible ? "隐藏选区" : "显示选区",
+          indicatorVisible ? NativeIcon.Remove : NativeIcon.RevealFreestanding,
+        ],
+        ].map(([id, text, icon]) => menuItem(
+        id,
+        text,
+        icon,
+        {
+          enabled: id !== "record" || !isRecordingBusy,
+          action: () => handleDesktopMenuAction(id),
+        }
+        ))),
+        ...(items.length ? [
+          { item: "Separator" },
+          ...await Promise.all(items.map(({ id, name, running, stopping }) => menuItem(
+          `automation:${id}`,
+          name,
+          stopping
+            ? NativeIcon.StatusPartiallyAvailable
+            : running ? NativeIcon.StopProgress : NativeIcon.StatusAvailable,
+          {
+            enabled: !stopping,
+            action: () => handleDesktopMenuAction(`automation:${id}`),
+          }
+          ))),
+          { item: "Separator" },
+        ] : []),
+        await menuItem(
+          "settings",
+          "设置",
+          NativeIcon.PreferencesGeneral,
+          { action: () => handleDesktopMenuAction("settings") }
+        ),
         { item: "Separator" },
-        ...items.map(({ id, name, running, stopping }) => ({
-          id: `automation:${id}`,
-          text: `${stopping ? "正在停止" : running ? "停止" : "启动"}：${name}`,
-          enabled: !stopping,
-          action: () => handleDesktopMenuAction(`automation:${id}`),
-        })),
-        { item: "Separator" },
-      ] : []),
-      { id: "settings", text: "打开设置窗口", action: () => handleDesktopMenuAction("settings") },
-      { item: "Separator" },
-      { id: "quit", text: "退出", action: () => handleDesktopMenuAction("quit") },
-    ],
-  });
+        await menuItem(
+          "quit",
+          "退出",
+          NativeIcon.StopProgress,
+          { action: () => handleDesktopMenuAction("quit") }
+        ),
+      ],
+    });
+    return { menu, menuItems };
+  } catch (error) {
+    await Promise.allSettled(menuItems.map((item) => item.close()));
+    throw error;
+  }
+}
+
+async function closeDesktopTrayMenu(bundle) {
+  if (!bundle) return;
+  await bundle.menu.close();
+  await Promise.allSettled(bundle.menuItems.map((item) => item.close()));
 }
 
 // 串行刷新原生菜单，防止较早的异步更新覆盖最新状态。
 export function refreshAutomationDesktopMenus() {
   if (!desktopTray) return Promise.resolve();
   desktopMenuQueue = desktopMenuQueue.then(async () => {
-    const items = desktopAutomationItems();
-    const snapshot = JSON.stringify(items);
+    const state = await desktopMenuState();
+    const snapshot = JSON.stringify(state);
     if (snapshot === desktopMenuSnapshot) return;
-    const menu = await createDesktopTrayMenu(items);
+    const bundle = await createDesktopTrayMenu(state);
     try {
-      await desktopTray.setMenu(menu);
+      await desktopTray.setMenu(bundle.menu);
     } catch (error) {
-      await menu.close();
+      await closeDesktopTrayMenu(bundle);
       throw error;
     }
     const previous = desktopTrayMenu;
-    desktopTrayMenu = menu;
-    if (previous) await previous.close();
-    if (IS_MAC) await invoke("update_dock_automation_menu", { items });
+    desktopTrayMenu = bundle;
+    if (previous) await closeDesktopTrayMenu(previous);
+    if (IS_MAC) {
+      await invoke("update_tray_menu", {
+        items: state.items,
+        recordingActive: state.recordingActive,
+        recordingBusy: state.recordingBusy,
+        indicatorVisible: state.indicatorVisible,
+      });
+    }
     desktopMenuSnapshot = snapshot;
   }).catch((error) => {
     setStatus(`菜单更新失败：${error}`, "err");
@@ -106,6 +207,7 @@ export async function handleDesktopMenuAction(action) {
         const w = getCurrentWindow();
         await w.show();
         await w.unminimize();
+        document.querySelector('.nav-item[data-view="settings"]')?.click?.();
         await w.setFocus();
         break;
       }
@@ -136,6 +238,7 @@ export async function setupTray() {
   const icon = IS_MAC ? await createMacTrayIcon() : await defaultWindowIcon();
   try {
     desktopTray = await TrayIcon.new({
+      id: "main",
       icon,
       iconAsTemplate: IS_MAC,
       tooltip: "截图工具",
@@ -144,5 +247,6 @@ export async function setupTray() {
   } finally {
     if (IS_MAC) await icon.close();
   }
+  setDesktopMenuRefresh(refreshAutomationDesktopMenus);
   await refreshAutomationDesktopMenus();
 }

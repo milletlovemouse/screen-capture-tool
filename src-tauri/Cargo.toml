@@ -27,8 +27,9 @@ tauri-plugin-process = "2.4.0"
 muda = { version = "=0.20.0", default-features = false }
 objc2 = "0.6.5"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = [
-    "std", "NSApplication", "NSMenu", "NSResponder",
+    "std", "NSImage", "NSMenu", "NSMenuItem", "NSStatusItem",
 ] }
+objc2-foundation = { version = "0.3.2", features = ["NSGeometry", "NSString"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-capture = "2.0.1"

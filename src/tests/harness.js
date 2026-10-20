@@ -11,6 +11,7 @@ const MODULES = [
   "core/state.js",
   "core/settings.js",
   "app/automation/model.js",
+  "app/desktop-menu-state.js",
   "app/region.js",
   "app/capture-overlays.js",
   "app/automation/safety.js",
@@ -22,7 +23,9 @@ const MODULES = [
   "app/permissions.js",
   "app/updater.js",
   "app/navigation.js",
+  "app/scrollbars.js",
   "app/tray.js",
+  "app/window-close.js",
   "app/automation/runner.js",
   "app/automation/list.js",
   "app/automation/editor.js",
@@ -56,6 +59,18 @@ export function harness(isMac = true) {
   const actionTypes = [];
   const dialogs = [];
   const windows = new Map();
+  const exitCodes = [];
+  const currentWindow = {
+    closeRequested: null,
+    hideCount: 0,
+    async hide() { this.hideCount += 1; },
+    async listen() { return () => {}; },
+    async onCloseRequested(callback) {
+      this.closeRequested = callback;
+      return () => {};
+    },
+    async setAlwaysOnTop() {},
+  };
   class MockWebviewWindow {
     static async getByLabel(label) {
       return windows.get(label) || null;
@@ -82,6 +97,17 @@ export function harness(isMac = true) {
   }
   const context = vm.createContext({
     IS_MAC: isMac,
+    NativeIcon: {
+      EnterFullScreen: "EnterFullScreen",
+      PreferencesGeneral: "PreferencesGeneral",
+      QuickLook: "QuickLook",
+      Remove: "Remove",
+      RevealFreestanding: "RevealFreestanding",
+      StatusAvailable: "StatusAvailable",
+      StatusPartiallyAvailable: "StatusPartiallyAvailable",
+      StatusUnavailable: "StatusUnavailable",
+      StopProgress: "StopProgress",
+    },
     shortcutText: (value) => shortcutText(value, isMac),
     setTimeout,
     clearTimeout,
@@ -93,9 +119,17 @@ export function harness(isMac = true) {
     isRegistered: async (key) => shortcuts.has(key),
     message: async (text, options) => { dialogs.push({ text, options }); },
     WebviewWindow: MockWebviewWindow,
-    localStorage: { setItem: (key, value) => storage.set(key, value) },
+    localStorage: {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value),
+    },
     document: {
-      querySelector: () => ({ classList: { contains: () => false } }),
+      documentElement: { classList: { toggle() {} } },
+      addEventListener() {},
+      querySelector: () => ({
+        classList: { contains: () => false },
+        focus() {},
+      }),
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, {
           value: ({
@@ -105,7 +139,12 @@ export function harness(isMac = true) {
             "shortcut-indicator": "CommandOrControl+Shift+D",
           })[id] ?? "1",
           textContent: "",
+          checked: false,
+          hidden: true,
+          listeners: new Map(),
           classList: { toggle() {} },
+          addEventListener(name, callback) { this.listeners.set(name, callback); },
+          focus() {},
         });
         return elements.get(id);
       },
@@ -130,6 +169,9 @@ export function harness(isMac = true) {
       notificationListeners.push(callback);
       return { unregister: async () => {} };
     },
+    exit: async (code) => { exitCodes.push(code); },
+    getCurrentWindow: () => currentWindow,
+    window: { addEventListener() {} },
   });
   vm.runInContext(source, context);
   return {
@@ -141,6 +183,8 @@ export function harness(isMac = true) {
     notificationListeners,
     actionTypes,
     dialogs,
+    exitCodes,
+    currentWindow,
     windows,
     run(script) {
       context.script = { id: "test", name: "test", ...script };

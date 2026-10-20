@@ -1,0 +1,150 @@
+.close-prompt-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(10, 11, 14, 0.66);
+}
+
+.close-prompt-backdrop[hidden] {
+  display: none;
+}
+
+.close-prompt-panel {
+  position: relative;
+  width: min(360px, 100%);
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #24262d;
+  outline: none;
+}
+
+.close-prompt-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+}
+
+.close-prompt-dismiss svg {
+  width: 18px;
+  height: 18px;
+}
+
+.close-prompt-header {
+  padding-right: 36px;
+}
+
+.close-prompt-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.close-prompt-header p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.close-prompt-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.close-action {
+  display: flex;
+  width: 100%;
+  min-height: 62px;
+  padding: 10px 11px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid var(--border);
+  background: #292b32;
+  color: var(--fg);
+  text-align: left;
+}
+
+.close-action:hover,
+.close-action:focus-visible {
+  border-color: #5d79aa;
+  background: #2e3139;
+  opacity: 1;
+  outline: none;
+}
+
+.close-action-icon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+}
+
+.close-action-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.close-action-icon-primary {
+  background: var(--accent);
+}
+
+.close-action-icon-danger {
+  background: #e5484d;
+}
+
+.close-action-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.close-action-copy strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.close-action-copy small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.close-remember {
+  display: flex;
+  margin-top: 13px;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.close-remember input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+@media (max-width: 520px) {
+  .close-prompt-panel {
+    width: min(340px, 100%);
+    padding: 16px;
+  }
+
+  .close-action {
+    min-height: 60px;
+  }
+}

@@ -43,7 +43,7 @@ async function cancellableAutomationWait(ms, run) {
   }
 }
 
-// 停止自动化占用的录屏资源，统一处理状态与选区框恢复。
+// 停止自动化占用的录屏资源，统一处理状态与选区恢复。
 async function stopAutomationRecording(run) {
   if (!run.recording) return;
   stopRecordingMonitor();

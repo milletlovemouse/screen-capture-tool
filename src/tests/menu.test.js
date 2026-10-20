@@ -20,13 +20,17 @@ test("desktop menus capture and share the existing recording ownership guard", a
 test("desktop menu restores a minimized window before focusing it", async () => {
   const h = harness();
   h.evaluate(`const windowActions = [];
+    const originalQuerySelector = document.querySelector;
+    document.querySelector = (selector) => selector === '.nav-item[data-view="settings"]'
+      ? { click: () => windowActions.push("settings") }
+      : originalQuerySelector(selector);
     getCurrentWindow = () => ({
       show: async () => windowActions.push("show"),
       unminimize: async () => windowActions.push("unminimize"),
       setFocus: async () => windowActions.push("focus"),
     });`);
   await h.evaluate('handleDesktopMenuAction("settings")');
-  assert.equal(h.evaluate('windowActions.join(",")'), "show,unminimize,focus");
+  assert.equal(h.evaluate('windowActions.join(",")'), "show,unminimize,settings,focus");
   h.evaluate('getCurrentWindow = () => ({ show: async () => { throw new Error("窗口已关闭"); } })');
   await h.evaluate('handleDesktopMenuAction("settings")');
   assert.equal(h.elements.get("status").textContent, "");

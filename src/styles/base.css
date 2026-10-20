@@ -30,15 +30,19 @@
     min-height: 24px;
     border: 2px solid transparent;
     border-radius: 999px;
-    background-color: var(--scrollbar-thumb);
+    background-color: transparent;
     background-clip: padding-box;
   }
 
-  *::-webkit-scrollbar-thumb:hover {
+  *.is-scrolling::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+  }
+
+  *.is-scrolling::-webkit-scrollbar-thumb:hover {
     background-color: var(--scrollbar-thumb-hover);
   }
 
-  *::-webkit-scrollbar-thumb:active {
+  *.is-scrolling::-webkit-scrollbar-thumb:active {
     background-color: var(--accent);
   }
 
@@ -52,6 +56,10 @@
   @supports not selector(::-webkit-scrollbar) {
     * {
       scrollbar-width: thin;
+      scrollbar-color: transparent transparent;
+    }
+
+    *.is-scrolling {
       scrollbar-color: var(--scrollbar-thumb) transparent;
     }
   }
@@ -67,4 +75,3 @@ body {
 .app {
   padding: 16px 18px 24px;
 }
-

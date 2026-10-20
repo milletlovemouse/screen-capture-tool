@@ -10,7 +10,7 @@ export function setPinned(value) {
 // ---- 屏幕录制 ----
 export let recordingActive = false;
 export let recordingBusy = false;
-// 录屏期间是否因避免拍入而临时隐藏了选区框
+// 录屏期间是否因避免拍入而临时隐藏了选区
 export let recordingHidIndicator = false;
 // 当前占用录屏资源的自动化运行实例
 export let automationRecordingRun = null;

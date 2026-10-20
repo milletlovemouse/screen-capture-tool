@@ -32,6 +32,8 @@ import {
 import { refreshPermissions, setupPermissions } from "./app/permissions.js";
 import { setupAbout } from "./app/updater.js";
 import { setupNav, setupSidebar } from "./app/navigation.js";
+import { setupAutoHideScrollbars } from "./app/scrollbars.js";
+import { setupWindowClose } from "./app/window-close.js";
 import { handleDesktopMenuAction, setAutomationMenuAction, setupTray } from "./app/tray.js";
 import { toggleAutomation } from "./app/automation/runner.js";
 import { setupAutomation } from "./app/automation/editor.js";
@@ -143,11 +145,6 @@ function bindWindowEvents() {
     setStatus(`已记录鼠标位置 (${x}, ${y})`, "ok");
   });
 
-  // 关闭主窗口时不退出，仅隐藏到菜单栏后台运行
-  getCurrentWindow().onCloseRequested(async (event) => {
-    event.preventDefault();
-    await getCurrentWindow().hide();
-  });
 }
 
 // 按截图、录屏、脚本的顺序恢复快捷键，单项失败不产生未处理拒绝。
@@ -171,8 +168,9 @@ async function registerStartupShortcuts() {
   await registerRegionShortcuts();
 }
 
-// 初始化主窗口，恢复录屏状态后才决定是否显示常驻选区框。
+// 初始化主窗口，恢复录屏状态后才决定是否显示常驻选区。
 async function initializeMainWindow() {
+  document.documentElement.classList.toggle("platform-macos", IS_MAC);
   loadSettings();
   setAutomationMenuAction(toggleAutomation);
   if (!IS_MAC) {
@@ -184,8 +182,10 @@ async function initializeMainWindow() {
   updateHomeShortcuts();
   bindEvents();
   setupNav();
+  setupAutoHideScrollbars();
   await setupAbout();
   setupSidebar();
+  setupWindowClose();
   setupAutomation();
   setupPermissions();
 
@@ -200,7 +200,7 @@ async function initializeMainWindow() {
     }
   }
 
-  // 保留 Dock 图标，并接收原生右键菜单的操作。
+  // 接收 macOS 原生状态栏菜单操作。
   if (IS_MAC) {
     await getCurrentWindow().listen("desktop-menu-action", (event) => {
       void handleDesktopMenuAction(event.payload);
@@ -208,7 +208,7 @@ async function initializeMainWindow() {
   }
   await setupTray();
 
-  // 重载时先恢复录屏状态并隐藏覆盖窗，避免常驻选区框被拍入录屏。
+  // 重载时先恢复录屏状态并隐藏覆盖窗，避免常驻选区被拍入录屏。
   try {
     setRecordingActive(await invoke("is_recording"));
     updateRecUI();
@@ -220,7 +220,7 @@ async function initializeMainWindow() {
     /* 忽略 */
   }
 
-  // 仅未录屏时恢复常驻选区框。
+  // 仅未录屏时恢复常驻选区。
   if (!recordingActive) await ensureIndicator();
 
   // 启动时自动注册已保存的快捷键

@@ -3,6 +3,7 @@ import { $, setStatus } from "../core/dom.js";
 import { notifySavedFile } from "./capture.js";
 import { regionPayload } from "./region.js";
 import { acquireCaptureOverlays } from "./capture-overlays.js";
+import { requestDesktopMenuRefresh } from "./desktop-menu-state.js";
 import {
   automationRecordingRun,
   recordingActive,
@@ -59,6 +60,7 @@ export function stopRecordingMonitor() {
 
 // 按当前录屏状态刷新首页按钮
 export function updateRecUI() {
+  void requestDesktopMenuRefresh();
   const btn = $("record-toggle");
   const label = $("rec-label");
   if (!btn) return;
@@ -67,12 +69,12 @@ export function updateRecUI() {
   if (label) label.textContent = recordingActive ? "停止录屏" : "开始录屏";
 }
 
-// 录屏前隐藏常驻选区框，避免红色虚线被录进画面
+// 录屏前隐藏常驻选区，避免红色虚线被录进画面
 export async function hideIndicatorForRecording() {
   if (!recordingOverlayLease) recordingOverlayLease = await acquireCaptureOverlays();
 }
 
-// 录屏结束后恢复之前显示的选区框
+// 录屏结束后恢复之前显示的选区
 export async function restoreIndicatorAfterRecording() {
   const release = recordingOverlayLease;
   recordingOverlayLease = null;

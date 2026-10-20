@@ -6,6 +6,7 @@ import { $, setStatus } from "../core/dom.js";
 import { saveSettings } from "../core/settings.js";
 import { registerRegionEscape, releaseRegionEscape } from "./automation/safety.js";
 import { withCaptureOverlayLock, captureOverlaysBlocked, forgetCaptureOverlay, waitCaptureWindowCreated } from "./capture-overlays.js";
+import { requestDesktopMenuRefresh } from "./desktop-menu-state.js";
 import { recordingKey } from "../core/state.js";
 
 // 当前预设区域（逻辑坐标）
@@ -109,7 +110,7 @@ async function openRegionPickerLocked() {
   }
 }
 
-// 创建常驻选区框窗口，边框附近可调整，内部点击穿透。
+// 创建常驻选区窗口，边框附近可调整，内部点击穿透。
 export async function createIndicator() {
   const { width, height } = regionPayload();
   const win = new WebviewWindow("indicator", {
@@ -128,18 +129,18 @@ export async function createIndicator() {
     title: "选区",
   });
   win.once("tauri://error", (e) => {
-    setStatus(`无法打开选区框：${e.payload}`, "err");
+    setStatus(`无法打开选区：${e.payload}`, "err");
   });
   await waitCaptureWindowCreated(win);
   await invoke("raise_capture_auxiliary_window", { label: "indicator" });
   return win;
 }
 
-// 确保选区框已显示（默认启动时调用）
+// 确保选区已显示（默认启动时调用）
 export async function ensureIndicator() {
   const region = regionPayload();
   if (region.width > 0 && region.height > 0) await registerRegionEscape();
-  return withCaptureOverlayLock(async () => {
+  const result = await withCaptureOverlayLock(async () => {
     if (captureOverlaysBlocked()) return;
     const win = await getIndicator();
     if (win) {
@@ -150,9 +151,11 @@ export async function ensureIndicator() {
       await createIndicator();
     }
   });
+  void requestDesktopMenuRefresh();
+  return result;
 }
 
-// 清空当前预设选区：重置坐标并隐藏选区框
+// 清空当前预设选区：重置坐标并隐藏选区
 export async function clearRegion() {
   if (recordingKey) return;
   ["x", "y", "w", "h"].forEach((id) => ($(id).value = 0));
@@ -163,30 +166,33 @@ export async function clearRegion() {
     if (ind) await ind.hide();
   });
   await releaseRegionEscape();
+  void requestDesktopMenuRefresh();
   setStatus("已清空选区", "ok");
 }
 
-// 显示/隐藏常驻选区框
+// 显示/隐藏常驻选区
 export async function toggleIndicator() {
-  return withCaptureOverlayLock(toggleIndicatorLocked);
+  const result = await withCaptureOverlayLock(toggleIndicatorLocked);
+  void requestDesktopMenuRefresh();
+  return result;
 }
 
 // 与捕获的隐藏/恢复串行化，不在录制期间重新显示边框。
 async function toggleIndicatorLocked() {
   if (captureOverlaysBlocked()) {
-    setStatus("录屏期间选区框保持隐藏，结束后恢复", "");
+    setStatus("录屏期间选区保持隐藏，结束后恢复", "");
     return;
   }
   const win = await getIndicator();
   if (win) {
     if (await win.isVisible()) {
       await win.hide();
-      setStatus("已隐藏选区框", "ok");
+      setStatus("已隐藏选区", "ok");
     } else {
       await win.show();
       await invoke("raise_capture_auxiliary_window", { label: "indicator" });
       broadcastRegion();
-      setStatus("已显示选区框", "ok");
+      setStatus("已显示选区", "ok");
     }
     return;
   }

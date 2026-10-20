@@ -10,4 +10,15 @@ test("automation status has workspace permission without broad application permi
   assert.equal(config.permissions.some((permission) => permission.startsWith("global-shortcut:")), false);
   const main = JSON.parse(await readFile(new URL("../../src-tauri/capabilities/default.json", import.meta.url), "utf8"));
   assert.ok(main.permissions.includes("core:window:allow-set-ignore-cursor-events"));
+  assert.ok(main.permissions.includes("core:window:allow-start-dragging"));
+  assert.ok(main.permissions.includes("core:app:allow-exit"));
+});
+
+test("macOS transparent title bar keeps a dedicated drag region", async () => {
+  const html = await readFile(new URL("../../index.html", import.meta.url), "utf8");
+  const layout = await readFile(new URL("../styles/layout.css", import.meta.url), "utf8");
+
+  assert.match(html, /class="window-drag-region"[^>]*data-tauri-drag-region/);
+  assert.match(layout, /\.platform-macos \.window-drag-region\s*\{/);
+  assert.match(layout, /left:\s*72px/);
 });
