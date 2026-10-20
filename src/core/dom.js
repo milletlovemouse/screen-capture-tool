@@ -13,5 +13,5 @@ export function setStatus(text, type = "") {
     return;
   }
   el.textContent = text;
-  el.className = "status-text" + (type ? " " + type : "");
+  el.className = "status-text";
 }

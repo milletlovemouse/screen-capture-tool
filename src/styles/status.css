@@ -7,12 +7,3 @@
   font-size: 12px;
   color: var(--muted);
 }
-
-.status-text.ok {
-  color: #46c17b;
-}
-
-.status-text.err {
-  color: #ff6b6b;
-}
-
