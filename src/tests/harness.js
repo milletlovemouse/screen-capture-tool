@@ -23,9 +23,10 @@ const MODULES = [
   "app/permissions.js",
   "app/updater.js",
   "app/navigation.js",
-  "app/scrollbars.js",
-  "app/tray.js",
-  "app/window-close.js",
+    "app/scrollbars.js",
+    "app/tray.js",
+    "app/window-close.js",
+    "app/window-controls.js",
   "app/automation/runner.js",
   "app/automation/list.js",
   "app/automation/editor.js",
@@ -64,6 +65,9 @@ export function harness(isMac = true) {
     closeRequested: null,
     hideCount: 0,
     async hide() { this.hideCount += 1; },
+    async minimize() { calls.push("window:minimize"); },
+    async toggleMaximize() { calls.push("window:toggle-maximize"); },
+    async close() { calls.push("window:close"); },
     async listen() { return () => {}; },
     async onCloseRequested(callback) {
       this.closeRequested = callback;

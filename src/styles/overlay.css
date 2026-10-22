@@ -10,11 +10,6 @@
   touch-action: none;
 }
 
-/* 仅提供 Windows 原生命中面，不使用可见的半透明遮罩。 */
-.overlay-body-windows {
-  background: rgba(0, 0, 0, 0.004);
-}
-
 /* 框选时整个覆盖层统一十字光标 */
 .overlay-body,
 .overlay-body * {
@@ -38,7 +33,7 @@
 .overlay-selection {
   position: fixed;
   border: 1px solid var(--accent);
-  background: rgba(79, 140, 255, 0.15);
+  background: transparent;
   display: none;
   z-index: 10;
   pointer-events: none;

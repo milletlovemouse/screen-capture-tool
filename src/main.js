@@ -34,6 +34,7 @@ import { setupAbout } from "./app/updater.js";
 import { setupNav, setupSidebar } from "./app/navigation.js";
 import { setupAutoHideScrollbars } from "./app/scrollbars.js";
 import { setupWindowClose } from "./app/window-close.js";
+import { setupWindowControls } from "./app/window-controls.js";
 import { handleDesktopMenuAction, setAutomationMenuAction, setupTray } from "./app/tray.js";
 import { toggleAutomation } from "./app/automation/runner.js";
 import { setupAutomation } from "./app/automation/editor.js";
@@ -171,6 +172,7 @@ async function registerStartupShortcuts() {
 // 初始化主窗口，恢复录屏状态后才决定是否显示常驻选区。
 async function initializeMainWindow() {
   document.documentElement.classList.toggle("platform-macos", IS_MAC);
+  document.documentElement.classList.toggle("platform-windows", !IS_MAC);
   loadSettings();
   setAutomationMenuAction(toggleAutomation);
   if (!IS_MAC) {
@@ -186,6 +188,7 @@ async function initializeMainWindow() {
   await setupAbout();
   setupSidebar();
   setupWindowClose();
+  setupWindowControls();
   setupAutomation();
   setupPermissions();
 

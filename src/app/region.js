@@ -63,7 +63,7 @@ async function openRegionPickerLocked() {
     await mainWin.hide();
   }
 
-  // 取主屏逻辑尺寸，用普通窗口覆盖全屏（不走原生全屏，避免独占一个桌面空间）
+  // 取主屏逻辑尺寸作为创建兜底；Windows 创建后进入原生全屏，macOS 保持普通覆盖窗。
   let sw = 1440;
   let sh = 900;
   try {

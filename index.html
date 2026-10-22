@@ -8,6 +8,17 @@
   </head>
   <body>
     <div class="window-drag-region" data-tauri-drag-region aria-hidden="true"></div>
+    <div class="window-controls" aria-label="窗口控制">
+      <button id="window-minimize" type="button" aria-label="最小化" title="最小化">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5h8" /></svg>
+      </button>
+      <button id="window-maximize" type="button" aria-label="最大化" title="最大化">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" /></svg>
+      </button>
+      <button id="window-close" type="button" aria-label="关闭" title="关闭">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 2.5 7 7m0-7-7 7" /></svg>
+      </button>
+    </div>
     <div class="layout">
       <aside class="sidebar">
         <div class="sidebar-top">
