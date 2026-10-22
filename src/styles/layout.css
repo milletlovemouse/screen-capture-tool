@@ -228,7 +228,7 @@
   z-index: 100;
   top: 0;
   right: 138px;
-  left: 0;
+  left: 160px;
   display: block;
   height: 36px;
 }
@@ -272,11 +272,14 @@
   stroke-width: 1;
 }
 
-.platform-windows .sidebar,
+.platform-windows .sidebar {
+  padding-top: 2px;
+}
+
 .platform-windows .content {
   padding-top: 44px;
 }
 
 .platform-windows .layout.collapsed .sidebar {
-  padding-top: 44px;
+  padding-top: 2px;
 }

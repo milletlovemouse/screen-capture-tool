@@ -30,7 +30,7 @@ import {
   updateHomeShortcuts,
 } from "./app/shortcuts.js";
 import { refreshPermissions, setupPermissions } from "./app/permissions.js";
-import { setupAbout } from "./app/updater.js";
+import { checkForUpdatesFromMenu, setupAbout } from "./app/updater.js";
 import { setupNav, setupSidebar } from "./app/navigation.js";
 import { setupAutoHideScrollbars } from "./app/scrollbars.js";
 import { setupWindowClose } from "./app/window-close.js";
@@ -202,6 +202,9 @@ async function initializeMainWindow() {
     await getCurrentWindow().listen("desktop-menu-action", (event) => {
       void handleDesktopMenuAction(event.payload);
     });
+    await getCurrentWindow().listen("app-menu-action", (event) => {
+      void handleAppMenuAction(event.payload);
+    });
   }
   await setupTray();
 
@@ -228,6 +231,31 @@ async function initializeMainWindow() {
 
   // 启动时检查权限，缺失则提醒去设置页授权
   await refreshPermissions();
+}
+
+// macOS 左上角应用菜单复用现有页面与业务入口。
+async function handleAppMenuAction(action) {
+  const mapping = {
+    "app.settings": "settings",
+  };
+  if (mapping[action]) {
+    await handleDesktopMenuAction(mapping[action]);
+    return;
+  }
+  if (action === "app.about") {
+    const window = getCurrentWindow();
+    await window.show();
+    document.querySelector('.nav-item[data-view="about"]')?.click?.();
+    await window.setFocus();
+    return;
+  }
+  if (action === "app.check-updates") {
+    const window = getCurrentWindow();
+    await window.show();
+    document.querySelector('.nav-item[data-view="about"]')?.click?.();
+    await window.setFocus();
+    await checkForUpdatesFromMenu();
+  }
 }
 
 // 保留现有入口名称与调用形式，并统一接住启动失败。

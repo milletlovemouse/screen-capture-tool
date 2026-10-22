@@ -84,6 +84,18 @@ test("Windows 托盘菜单使用无图标的普通菜单项", async () => {
     app.evaluate('typeof menus.at(-1).items.find(({ id }) => id === "capture").action'),
     "function"
   );
+  await app.evaluate(`
+    globalThis.settingsOpened = false;
+    document.querySelector = (selector) => selector === '.nav-item[data-view="settings"]'
+      ? { click: () => { settingsOpened = true; } }
+      : { classList: { contains: () => false }, focus() {} };
+    getCurrentWindow = () => ({
+      show: async () => {}, unminimize: async () => {}, setFocus: async () => {},
+    });
+    menus.at(-1).items.find(({ id }) => id === "settings").action();
+  `);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate("settingsOpened"), true);
 });
 
 test("macOS 托盘菜单操作交给原生菜单事件统一转发", async () => {

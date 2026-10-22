@@ -118,6 +118,11 @@ async function checkForUpdates(automatic = false) {
   }
 }
 
+// 应用菜单复用手动检查入口，始终向用户展示检查结果。
+export function checkForUpdatesFromMenu() {
+  return checkForUpdates(false);
+}
+
 // 下载并安装更新，完成后重启应用。
 async function installAvailableUpdate() {
   if (!availableUpdate) return;

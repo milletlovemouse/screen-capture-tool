@@ -13,6 +13,9 @@ pub use platform::key_mapping;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    platform::macos::set_process_display_name();
+
     tauri::Builder::default()
         .manage(commands::automation_cancel::AutomationState::default())
         .manage(RecState(Mutex::new(None)))
@@ -21,9 +24,16 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|_app| {
+            #[cfg(target_os = "macos")]
+            platform::macos::install_app_menu(_app.handle())?;
+            Ok(())
+        })
         .on_menu_event(|_app, _event| {
             #[cfg(target_os = "macos")]
-            platform::macos::handle_tray_menu_event(_app, _event);
+            if !platform::macos::handle_app_menu_event(_app, &_event) {
+                platform::macos::handle_tray_menu_event(_app, _event);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::update_tray_menu,
@@ -50,6 +60,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if matches!(event, tauri::RunEvent::Ready) {
+                platform::macos::set_application_menu_title();
+            }
             #[cfg(target_os = "macos")]
             if matches!(event, tauri::RunEvent::Reopen { .. }) {
                 platform::macos::reopen(app);

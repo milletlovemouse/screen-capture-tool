@@ -207,7 +207,11 @@ export async function handleDesktopMenuAction(action) {
       case "settings": {
         const w = getCurrentWindow();
         await w.show();
-        await w.unminimize();
+        try {
+          await w.unminimize();
+        } catch {
+          // Windows 关闭到托盘后只是隐藏，未最小化时不应阻断后续页面切换。
+        }
         document.querySelector('.nav-item[data-view="settings"]')?.click?.();
         await w.setFocus();
         break;

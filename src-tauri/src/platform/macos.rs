@@ -1,14 +1,65 @@
 use std::cell::RefCell;
 
 use muda::{ContextMenu, Menu, MenuItem, PredefinedMenuItem};
-use objc2::{msg_send, runtime::NSObjectProtocol, sel, AllocAnyThread};
-use objc2_app_kit::{NSImage, NSMenuItem};
-use objc2_foundation::{NSSize, NSString};
+use objc2::{msg_send, runtime::NSObjectProtocol, sel, AllocAnyThread, MainThreadMarker};
+use objc2_app_kit::{NSApplication, NSImage, NSMenuItem};
+use objc2_foundation::{NSProcessInfo, NSSize, NSString};
+use tauri::menu::{MenuBuilder as AppMenuBuilder, SubmenuBuilder};
 use tauri::{Emitter, Manager};
 
 use crate::commands::TrayAutomationMenuItem;
 
 const MENU_ICON_SIZE: f64 = 16.0;
+
+/// 设置进程显示名，供开发 Bundle 和系统进程信息使用。
+pub fn set_process_display_name() {
+    NSProcessInfo::processInfo().setProcessName(&NSString::from_str("截图工具"));
+}
+
+/// 在 AppKit 完成启动后固定顶部应用菜单标题，避免启动流程再次覆盖。
+pub fn set_application_menu_title() {
+    if let Some(mtm) = MainThreadMarker::new() {
+        if let Some(main_menu) = NSApplication::sharedApplication(mtm).mainMenu() {
+            if let Some(item) = main_menu.itemAtIndex(0) {
+                item.setTitle(&NSString::from_str("截图工具"));
+            }
+        }
+    }
+}
+
+/// 构建符合 macOS 使用习惯的应用菜单，业务操作继续交给前端现有入口。
+pub fn install_app_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let app_menu = SubmenuBuilder::new(app, "截图工具")
+        .text("app.about", "关于截图工具")
+        .text("app.settings", "设置…")
+        .text("app.check-updates", "检查更新…")
+        .separator()
+        .services_with_text("服务")
+        .separator()
+        .hide_with_text("隐藏截图工具")
+        .hide_others_with_text("隐藏其他")
+        .show_all_with_text("全部显示")
+        .separator()
+        .quit_with_text("退出截图工具")
+        .build()?;
+    let menu = AppMenuBuilder::new(app).item(&app_menu).build()?;
+    app.set_menu(menu)?;
+    Ok(())
+}
+
+/// 将应用菜单中的自定义业务操作转发给主窗口。
+pub fn handle_app_menu_event(app: &tauri::AppHandle, event: &tauri::menu::MenuEvent) -> bool {
+    let action = event.id().as_ref();
+    if !action.starts_with("app.") {
+        return false;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(error) = window.emit("app-menu-action", action) {
+            eprintln!("发送应用菜单操作失败：{error}");
+        }
+    }
+    true
+}
 
 thread_local! {
     static PENDING_TRAY_MENU: RefCell<Option<Menu>> = const { RefCell::new(None) };
