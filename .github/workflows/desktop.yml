@@ -158,7 +158,7 @@ jobs:
           ]
           notes = "\n".join(f"• {subject}" for subject in changes)
           if not notes:
-              notes = f"ScreenCaptureTool {tag}"
+              notes = f"截图工具 {tag}"
 
           for signature in root.glob("desktop-*/**/*.sig"):
               artifact = Path(str(signature)[:-4])
