@@ -106,6 +106,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           pattern: desktop-*
@@ -121,6 +124,7 @@ jobs:
           import json
           import os
           import shutil
+          import subprocess
           from pathlib import Path
 
           root = Path("release-assets")
@@ -135,6 +139,26 @@ jobs:
           platforms = {}
           tag = os.environ["RELEASE_TAG"]
           repository = os.environ["REPOSITORY"]
+          previous_tag = subprocess.run(
+              ["git", "describe", "--tags", "--abbrev=0", f"{tag}^"],
+              capture_output=True,
+              check=False,
+              text=True,
+          ).stdout.strip()
+          revision = f"{previous_tag}..{tag}" if previous_tag else tag
+          subjects = subprocess.run(
+              ["git", "log", "--format=%s", revision],
+              capture_output=True,
+              check=True,
+              text=True,
+          ).stdout.splitlines()
+          changes = [
+              subject for subject in subjects
+              if not subject.startswith("chore: release ")
+          ]
+          notes = "\n".join(f"• {subject}" for subject in changes)
+          if not notes:
+              notes = f"ScreenCaptureTool {tag}"
 
           for signature in root.glob("desktop-*/**/*.sig"):
               artifact = Path(str(signature)[:-4])
@@ -169,7 +193,7 @@ jobs:
               json.dumps(
                   {
                       "version": tag.removeprefix("v"),
-                      "notes": f"ScreenCaptureTool {tag}",
+                      "notes": notes,
                       "platforms": platforms,
                   },
                   ensure_ascii=False,
