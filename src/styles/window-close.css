@@ -4,8 +4,10 @@
   z-index: 1000;
   display: grid;
   place-items: center;
-  padding: 18px;
-  background: rgba(10, 11, 14, 0.66);
+  padding: 14px;
+  background: rgba(10, 11, 14, 0.34);
+  -webkit-backdrop-filter: blur(10px) saturate(115%);
+  backdrop-filter: blur(10px) saturate(115%);
 }
 
 .close-prompt-backdrop[hidden] {
@@ -14,10 +16,10 @@
 
 .close-prompt-panel {
   position: relative;
-  width: min(360px, 100%);
-  padding: 18px;
+  width: min(330px, 100%);
+  padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 9px;
   background: #24262d;
   outline: none;
 }
@@ -46,7 +48,7 @@
 
 .close-prompt-header h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .close-prompt-header p {
@@ -57,17 +59,17 @@
 
 .close-prompt-actions {
   display: grid;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 7px;
+  margin-top: 14px;
 }
 
 .close-action {
   display: flex;
   width: 100%;
-  min-height: 62px;
-  padding: 10px 11px;
+  min-height: 56px;
+  padding: 8px 10px;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   border: 1px solid var(--border);
   background: #292b32;
   color: var(--fg);
@@ -84,17 +86,17 @@
 
 .close-action-icon {
   display: grid;
-  flex: 0 0 38px;
-  width: 38px;
-  height: 38px;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 7px;
   color: #fff;
 }
 
 .close-action-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .close-action-icon-primary {
@@ -112,23 +114,23 @@
 }
 
 .close-action-copy strong {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
 }
 
 .close-action-copy small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .close-remember {
   display: flex;
-  margin-top: 13px;
+  margin-top: 12px;
   flex-direction: row;
   align-items: center;
   gap: 9px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .close-remember input {
@@ -140,11 +142,11 @@
 
 @media (max-width: 520px) {
   .close-prompt-panel {
-    width: min(340px, 100%);
-    padding: 16px;
+    width: min(330px, 100%);
+    padding: 15px;
   }
 
   .close-action {
-    min-height: 60px;
+    min-height: 54px;
   }
 }

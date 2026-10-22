@@ -25,6 +25,7 @@ function startupRecordingHarness(active) {
     updateRecUI = () => recordingStartupOrder.push("ui:" + recordingActive);
     hideIndicatorForRecording = async () => recordingStartupOrder.push("hide");
     startRecordingMonitor = () => recordingStartupOrder.push("monitor");
+    setIndicatorEnabled = (value) => recordingStartupOrder.push("enabled:" + value);
     ensureIndicator = async () => recordingStartupOrder.push("indicator:" + recordingActive);
   `);
   return h;
@@ -53,7 +54,7 @@ test("startup awaits overlay hiding before monitoring an existing recording and 
 test("startup shows the indicator only after restoring an inactive recording state", async () => {
   const h = startupRecordingHarness(false);
   await h.evaluate("initializeMainWindow()");
-  assert.equal(h.evaluate('recordingStartupOrder.join(",")'), "is_recording,ui:false,indicator:false");
+  assert.equal(h.evaluate('recordingStartupOrder.join(",")'), "is_recording,ui:false,enabled:true,indicator:false");
 });
 
 test("failed overlay hiding during recording does not fall through to showing the indicator", async () => {

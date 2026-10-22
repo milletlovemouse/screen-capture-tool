@@ -7,6 +7,12 @@ export function setPinned(value) {
   pinned = value;
 }
 
+// 用户是否开启“显示选区”；区域暂时为空时仍保留该意图。
+export let indicatorEnabled = false;
+export function setIndicatorEnabled(value) {
+  indicatorEnabled = Boolean(value);
+}
+
 // ---- 屏幕录制 ----
 export let recordingActive = false;
 export let recordingBusy = false;

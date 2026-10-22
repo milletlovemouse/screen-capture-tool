@@ -64,10 +64,13 @@ export function harness(isMac = true) {
   const currentWindow = {
     closeRequested: null,
     hideCount: 0,
+    focusCount: 0,
     async hide() { this.hideCount += 1; },
     async minimize() { calls.push("window:minimize"); },
     async toggleMaximize() { calls.push("window:toggle-maximize"); },
     async close() { calls.push("window:close"); },
+    async isVisible() { return true; },
+    async setFocus() { this.focusCount += 1; },
     async listen() { return () => {}; },
     async onCloseRequested(callback) {
       this.closeRequested = callback;
@@ -123,6 +126,7 @@ export function harness(isMac = true) {
     isRegistered: async (key) => shortcuts.has(key),
     message: async (text, options) => { dialogs.push({ text, options }); },
     WebviewWindow: MockWebviewWindow,
+    emit: async () => {},
     localStorage: {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value),
@@ -145,9 +149,11 @@ export function harness(isMac = true) {
           textContent: "",
           checked: false,
           hidden: true,
+          style: {},
           listeners: new Map(),
           classList: { toggle() {} },
           addEventListener(name, callback) { this.listeners.set(name, callback); },
+          removeAttribute(name) { delete this[name]; },
           focus() {},
         });
         return elements.get(id);

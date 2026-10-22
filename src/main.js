@@ -14,9 +14,9 @@ import {
 } from "./app/recording.js";
 import {
   broadcastRegion,
-  clearRegion,
   ensureIndicator,
   openRegionPicker,
+  restoreEnabledIndicator,
   toggleIndicator,
   useFullscreenRegion,
 } from "./app/region.js";
@@ -42,14 +42,13 @@ import { renderAutomationSteps } from "./app/automation/steps.js";
 import { registerAutomationScriptShortcuts } from "./app/automation/shortcuts.js";
 import {
   automationScripts,
-  automationRuns,
-  automationShortcutRecording,
-  keysRecording,
+  indicatorEnabled,
   pinned,
   pointPickingStep,
   recordingActive,
   recordingKey,
   setPointPickingStep,
+  setIndicatorEnabled,
   setRecordingActive,
 } from "./core/state.js";
 
@@ -73,14 +72,9 @@ function bindEvents() {
   });
   window.addEventListener("keydown", onRecordKeydown, true);
 
-  // 已选区域后按 Esc 清空选区（录制快捷键/按键录制时的 Esc 不走这里）
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !automationRuns.size && !recordingKey && !keysRecording && !automationShortcutRecording) {
-      void clearRegion().catch(console.error);
-    }
+  $("use-fullscreen").addEventListener("click", () => {
+    void useFullscreenRegion({ restoreFocus: true });
   });
-
-  $("use-fullscreen").addEventListener("click", useFullscreenRegion);
 
   $("pick-dir").addEventListener("click", async () => {
     const selected = await open({ directory: true, multiple: false });
@@ -114,7 +108,7 @@ function bindWindowEvents() {
     $("h").value = height;
     saveSettings();
     broadcastRegion();
-    ensureIndicator();
+    if (indicatorEnabled) void restoreEnabledIndicator();
     setStatus(`已选择区域 ${width}x${height} @ (${x}, ${y})`, "ok");
   });
 
@@ -223,8 +217,11 @@ async function initializeMainWindow() {
     /* 忽略 */
   }
 
-  // 仅未录屏时恢复常驻选区。
-  if (!recordingActive) await ensureIndicator();
+  // 首次启动沿用默认显示选区；Esc 只清空区域，不关闭这项显示意图。
+  if (!recordingActive) {
+    setIndicatorEnabled(true);
+    await ensureIndicator();
+  }
 
   // 启动时自动注册已保存的快捷键
   await registerStartupShortcuts();

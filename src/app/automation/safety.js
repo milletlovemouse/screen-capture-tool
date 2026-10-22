@@ -29,6 +29,7 @@ let automationSafetyQueue = Promise.resolve();
 let emergencyKeyPressed = false;
 let previousEscapeAt = 0;
 let regionEscapeActive = false;
+let regionEscapeAction = Promise.resolve();
 
 // 连按两次 Esc 时请求取消原生操作，由各执行循环完成资源回收。
 function handleEmergencyShortcut(event) {
@@ -40,7 +41,7 @@ function handleEmergencyShortcut(event) {
   emergencyKeyPressed = true;
   if (!automationRuns.size) {
     if (regionEscapeActive && !recordingKey && !keysRecording && !automationShortcutRecording && !pointPickingStep) {
-      void cancelRegionFromEscape().catch(console.error);
+      regionEscapeAction = cancelRegionFromEscape().catch(console.error);
     }
     return;
   }
@@ -58,14 +59,15 @@ function handleEmergencyShortcut(event) {
   previousEscapeAt = now;
 }
 
-// 正在框选时只关闭覆盖窗；已完成框选时清空区域，不依赖主窗口焦点。
+// 框选中取消框选；显示选区时清空并隐藏选区。
 async function cancelRegionFromEscape() {
   const overlay = await WebviewWindow.getByLabel("overlay");
   if (overlay) {
     await overlay.close();
-    return;
+  } else if (regionEscapeActive) {
+    await clearRegion();
   }
-  if (!automationRuns.size) await clearRegion();
+  emergencyKeyPressed = false;
 }
 
 // 准备和释放共用串行队列；失败只返回给调用方，不阻断后续清理或重试。
@@ -91,13 +93,30 @@ async function ensureEmergencyShortcut() {
 export function registerRegionEscape() {
   return withAutomationSafetyQueue(async () => {
     regionEscapeActive = true;
+    emergencyKeyPressed = false;
     return ensureEmergencyShortcut();
   });
 }
 
 export async function releaseRegionEscape() {
-  await withAutomationSafetyQueue(async () => { regionEscapeActive = false; });
-  await releaseAutomationSafety();
+  await withAutomationSafetyQueue(async () => {
+    regionEscapeActive = false;
+    emergencyKeyPressed = false;
+    if (automationRuns.size || !emergencyShortcutActive) return;
+    try {
+      if (await isRegistered(EMERGENCY_SHORTCUT)) {
+        await unregister(EMERGENCY_SHORTCUT);
+      }
+      emergencyShortcutActive = false;
+    } catch {
+      /* 释放失败时保留所有权，后续注册或自动化清理会继续复用。 */
+    }
+  });
+}
+
+// 区域重新显示前等待上一次 Esc 清理完整结束，避免旧隐藏操作覆盖新区域。
+export async function waitRegionEscapeAction() {
+  await regionEscapeAction;
 }
 
 // 只有本脚本成功注册的启停快捷键才能作为备用停止方式。

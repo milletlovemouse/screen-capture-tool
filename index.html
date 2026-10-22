@@ -353,6 +353,31 @@
         <input id="h" type="hidden" value="600" />
       </main>
     </div>
+    <div id="update-prompt" class="update-prompt-backdrop" role="dialog" aria-modal="true"
+      aria-labelledby="update-prompt-title" hidden>
+      <section class="update-prompt-panel" tabindex="-1">
+        <header class="update-prompt-header">
+          <h2 id="update-prompt-title">发现新版本</h2>
+          <p>已有新的版本可供下载</p>
+        </header>
+        <div class="update-version-list">
+          <div><span>当前版本</span><strong id="update-current-version">--</strong></div>
+          <div><span>最新版本</span><strong id="update-latest-version">--</strong></div>
+        </div>
+        <div class="update-notes-block">
+          <h3>更新内容</h3>
+          <div id="update-release-notes" class="update-release-notes"></div>
+        </div>
+        <div class="update-progress" id="update-progress" hidden>
+          <div id="update-progress-bar"></div>
+        </div>
+        <div class="update-prompt-actions">
+          <button id="update-cancel" type="button" class="ghost">取消</button>
+          <button id="update-skip" type="button" class="ghost">跳过此版本</button>
+          <button id="update-confirm" type="button">更新</button>
+        </div>
+      </section>
+    </div>
     <div id="close-prompt" class="close-prompt-backdrop" role="dialog" aria-modal="true"
       aria-labelledby="close-prompt-title" hidden>
       <section class="close-prompt-panel" tabindex="-1">

@@ -20,7 +20,7 @@ function overlayHarness(isMac = false) {
     scaleFactor: 1.5,
   };
   const self = Object.fromEntries(
-    ["setPosition", "setSize", "setFullscreen", "setAlwaysOnTop",
+    ["setPosition", "setSize", "setAlwaysOnTop",
       "setVisibleOnAllWorkspaces", "setCursorIcon", "show", "setFocus", "close"]
       .map((name) => [name, async (...args) => { calls.push([name, ...args]); }])
   );
@@ -33,6 +33,8 @@ function overlayHarness(isMac = false) {
     primaryMonitor: async () => monitor,
     LogicalPosition: class { constructor(x, y) { this.x = x; this.y = y; } },
     LogicalSize: class { constructor(width, height) { this.width = width; this.height = height; } },
+    PhysicalPosition: class { constructor(x, y) { this.x = x; this.y = y; } },
+    PhysicalSize: class { constructor(width, height) { this.width = width; this.height = height; } },
     invoke: async () => [1440, 900],
     emit: async (name, payload) => { calls.push([name, payload]); },
     document: {
@@ -57,15 +59,17 @@ function overlayHarness(isMac = false) {
   return { calls, handlers, captured, classes, monitor, context };
 }
 
-test("Windows overlay uses an invisible native fullscreen cover", async () => {
+test("Windows overlay overdraws the monitor without native fullscreen", async () => {
   const h = overlayHarness();
   await vm.runInContext("initCover()", h.context);
-  assert.deepEqual(h.calls.slice(0, 2), [
-    ["setPosition", h.monitor.position], ["setSize", h.monitor.size],
-  ]);
-  assert.deepEqual(h.calls[2], ["setFullscreen", true]);
+  assert.equal(h.calls[0][0], "setPosition");
+  assert.equal(h.calls[0][1].x, -2);
+  assert.equal(h.calls[0][1].y, -2);
+  assert.equal(h.calls[1][0], "setSize");
+  assert.equal(h.calls[1][1].width, 2564);
+  assert.equal(h.calls[1][1].height, 1444);
+  assert.equal(h.calls.some(([name]) => name === "setFullscreen"), false);
   assert.ok(h.calls.findIndex(([name]) => name === "show") > 1);
-  assert.equal(h.classes.has("overlay-body-windows"), false);
   assert.equal(vm.runInContext("bounds.height", h.context), 960);
 });
 

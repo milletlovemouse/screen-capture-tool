@@ -9,6 +9,7 @@ import { normalizeAutomationScripts } from "../app/automation/model.js";
 
 const STORE_KEY = "sct-settings";
 let closeAction = "";
+let skippedUpdateVersion = "";
 
 export function getCloseAction() {
   return closeAction;
@@ -16,6 +17,16 @@ export function getCloseAction() {
 
 export function setCloseAction(value) {
   closeAction = value === "tray" || value === "quit" ? value : "";
+  saveSettings();
+}
+
+export function getSkippedUpdateVersion() {
+  return skippedUpdateVersion;
+}
+
+// 记录用户明确跳过的单个版本，后续更高版本仍会正常提示。
+export function setSkippedUpdateVersion(value) {
+  skippedUpdateVersion = typeof value === "string" ? value : "";
   saveSettings();
 }
 
@@ -36,6 +47,7 @@ export function loadSettings() {
     if (s.indicatorShortcut) $("shortcut-indicator").value = s.indicatorShortcut;
     if (s.collapsed) document.querySelector(".layout").classList.add("collapsed");
     closeAction = s.closeAction === "tray" || s.closeAction === "quit" ? s.closeAction : "";
+    skippedUpdateVersion = typeof s.skippedUpdateVersion === "string" ? s.skippedUpdateVersion : "";
     setPinned(!!s.pinned);
     setAutomationScripts(normalizeAutomationScripts(s.automations));
   } catch {
@@ -59,6 +71,7 @@ export function saveSettings() {
     indicatorShortcut: $("shortcut-indicator").value,
     collapsed: document.querySelector(".layout").classList.contains("collapsed"),
     closeAction,
+    skippedUpdateVersion,
     pinned,
     automations: automationScripts,
   };

@@ -171,21 +171,9 @@ test("a stale toggle shortcut map does not bypass the emergency stop requirement
   assert.equal(h.dialogs.length, 1);
 });
 
-test("global Escape clears a selected region without a focused main window", async () => {
-  const h = harness();
-  h.evaluate('$("w").value = 200; $("h").value = 100; new WebviewWindow("indicator")');
-  await h.evaluate("registerRegionEscape()");
-  h.shortcuts.get("Escape")({ state: "Pressed" });
-  await until(() => !h.shortcuts.has("Escape"));
-  assert.equal(h.elements.get("w").value, 0);
-  assert.equal(h.elements.get("h").value, 0);
-  assert.equal(h.windows.get("indicator").visible, false);
-});
-
-test("automation keeps its double Escape behavior while a selected region owns Escape", async () => {
+test("automation keeps its double Escape emergency stop behavior", async () => {
   const h = harness();
   h.evaluate('$("w").value = 200; $("h").value = 100');
-  await h.evaluate("registerRegionEscape()");
   const running = h.run({ runMode: "loop", steps: [{ type: "wait", ms: 1000 }] });
   await until(() => h.windows.has("automation-status"));
   const escape = h.shortcuts.get("Escape");
@@ -195,9 +183,45 @@ test("automation keeps its double Escape behavior while a selected region owns E
   escape({ state: "Pressed" }); escape({ state: "Released" });
   await running;
   assert.equal(h.windows.has("automation-status"), false);
-  assert.equal(h.shortcuts.has("Escape"), true);
-  await h.evaluate("clearRegion()");
   assert.equal(h.shortcuts.has("Escape"), false);
+});
+
+test("Escape cancels every newly opened region picker", async () => {
+  const h = harness();
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    h.evaluate('new WebviewWindow("overlay")');
+    assert.equal(await h.evaluate("registerRegionEscape()"), true);
+    const escape = h.shortcuts.get("Escape");
+    escape({ state: "Pressed" });
+    await until(() => !h.windows.has("overlay"));
+    await h.evaluate("releaseRegionEscape()");
+    assert.equal(h.shortcuts.has("Escape"), false);
+  }
+});
+
+test("showing the indicator restores main focus and Escape clears it", async () => {
+  const h = harness();
+  h.evaluate('$("w").value = 200; $("h").value = 100');
+
+  await h.evaluate("toggleIndicator()");
+  assert.equal(h.windows.get("indicator").visible, true);
+  assert.equal(h.shortcuts.has("Escape"), true);
+  assert.equal(h.currentWindow.focusCount, 1);
+
+  const escape = h.shortcuts.get("Escape");
+  escape({ state: "Pressed" });
+  await h.evaluate("waitRegionEscapeAction()");
+  assert.equal(h.elements.get("h").value, 0);
+  assert.equal(h.windows.get("indicator").visible, false);
+  assert.equal(h.shortcuts.has("Escape"), false);
+  assert.equal(h.evaluate("indicatorEnabled"), true);
+
+  await h.evaluate("useFullscreenRegion({ restoreFocus: true })");
+  assert.equal(h.windows.get("indicator").visible, true);
+  assert.equal(h.currentWindow.focusCount, 2);
+  assert.equal(h.elements.get("w").value, 1440);
+  assert.equal(h.elements.get("h").value, 900);
 });
 
 test("region shortcuts register independently and full screen ignores repeat presses and recording", async () => {

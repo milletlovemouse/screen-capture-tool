@@ -9,6 +9,7 @@ import { setStatus } from "../core/dom.js";
 import {
   automationScripts,
   automationRuns,
+  indicatorEnabled,
   recordingActive,
   recordingBusy,
 } from "../core/state.js";
@@ -54,7 +55,7 @@ async function desktopMenuState() {
     items: desktopAutomationItems(),
     recordingActive,
     recordingBusy,
-    indicatorVisible,
+    indicatorVisible: indicatorEnabled,
   };
 }
 

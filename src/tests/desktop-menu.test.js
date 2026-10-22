@@ -120,6 +120,7 @@ test("录屏和选区菜单根据当前状态切换文字与图标", async () =>
 
   await app.evaluate(`
     setRecordingActive(true);
+    setIndicatorEnabled(true);
     new WebviewWindow("indicator");
     refreshAutomationDesktopMenus();
   `);

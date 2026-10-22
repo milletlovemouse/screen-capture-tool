@@ -1,7 +1,7 @@
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-// 整条边均可操作；内侧加宽命中范围，顶部贴屏时延伸至菜单栏下方。
-export function regionHit(region, x, y, tolerance = 8) {
+// 整条边均可操作；可按平台调整命中范围，避免透明窗口拦截远处操作。
+export function regionHit(region, x, y, tolerance = 8, options = {}) {
   if (!region || region.width < 2 || region.height < 2) return "";
   const right = region.x + region.width;
   const bottom = region.y + region.height;
@@ -14,11 +14,12 @@ export function regionHit(region, x, y, tolerance = 8) {
     Math.abs(y - region.y) <= Math.abs(y - bottom) ? "n"
     : Math.abs(y - bottom) <= tolerance ? "s" : "";
   if (horizontal || vertical) return vertical + horizontal;
-  if (x < region.x + Math.min(120, region.width) &&
-      y < region.y + Math.min(26, region.height)) return "move";
+  if (x < region.x + Math.min(options.moveWidth ?? 120, region.width) &&
+      y < region.y + Math.min(options.moveHeight ?? 26, region.height)) return "move";
 
-  const inside = 16;
-  const topInset = Math.min(region.height / 3, Math.max(inside, 64 - region.y));
+  const inside = options.inside ?? 16;
+  const topInset = options.topInset ??
+    Math.min(region.height / 3, Math.max(inside, 64 - region.y));
   const nearLeft = x - region.x <= inside && x - region.x <= right - x;
   const nearRight = right - x <= inside && !nearLeft;
   const nearTop = y - region.y <= topInset && y - region.y <= bottom - y;

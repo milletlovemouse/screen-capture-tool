@@ -12,7 +12,6 @@ test("automation status has workspace permission without broad application permi
   const main = JSON.parse(await readFile(new URL("../../src-tauri/capabilities/default.json", import.meta.url), "utf8"));
   assert.ok(main.permissions.includes("core:window:allow-set-ignore-cursor-events"));
   assert.ok(main.permissions.includes("core:window:allow-start-dragging"));
-  assert.ok(main.permissions.includes("core:window:allow-set-fullscreen"));
   assert.ok(main.permissions.includes("core:app:allow-exit"));
 });
 

@@ -2,6 +2,7 @@ import { listen, emitTo } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
 import { regionHit, adjustRegion } from "../shared/region-geometry";
+import { IS_MAC } from "../shared/platform.js";
 
 const self = getCurrentWindow();
 const box = document.querySelector(".indicator-box");
@@ -19,6 +20,26 @@ let interactive = false;
 let updating = false;
 let running = true;
 let origin = { x: 0, y: 0 };
+const WINDOWS_OVERDRAW = 2;
+const WINDOWS_HIT_OPTIONS = {
+  tolerance: 4,
+  inside: 6,
+  topInset: 8,
+  moveWidth: 32,
+  moveHeight: 18,
+};
+
+function hitRegion(point) {
+  return IS_MAC
+    ? regionHit(region, point.x, point.y)
+    : regionHit(
+      region,
+      point.x,
+      point.y,
+      WINDOWS_HIT_OPTIONS.tolerance,
+      WINDOWS_HIT_OPTIONS,
+    );
+}
 
 // macOS 可能将窗口下移到菜单栏下方，统一将局部坐标换算为屏幕坐标。
 function screenPoint(event) {
@@ -80,7 +101,7 @@ async function pollCursor() {
     } else if (!drag && region) {
       const [x, y] = await invoke("cursor_position");
       if (!drag) {
-        setHover(regionHit(region, x, y));
+        setHover(hitRegion({ x, y }));
       }
     }
   } catch {
@@ -109,8 +130,9 @@ async function init() {
   await self.setIgnoreCursorEvents(true);
   const [width, height] = await invoke("primary_size");
   bounds = { width, height };
-  await self.setPosition(new LogicalPosition(0, 0));
-  await self.setSize(new LogicalSize(width, height));
+  const overdraw = IS_MAC ? 0 : WINDOWS_OVERDRAW;
+  await self.setPosition(new LogicalPosition(-overdraw, -overdraw));
+  await self.setSize(new LogicalSize(width + overdraw * 2, height + overdraw * 2));
   await syncOrigin();
   await self.onMoved(() => { void syncOrigin().catch(console.error); });
   for (const hit of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
@@ -131,7 +153,7 @@ async function init() {
 document.body.addEventListener("pointerdown", (event) => {
   if (event.button !== 0 || drag) return;
   const point = screenPoint(event);
-  const hit = regionHit(region, point.x, point.y);
+  const hit = hitRegion(point);
   if (!hit) { setHover(""); return; }
   event.preventDefault();
   drag = {
@@ -146,7 +168,7 @@ document.body.addEventListener("pointerdown", (event) => {
 document.body.addEventListener("pointermove", (event) => {
   const point = screenPoint(event);
   if (!drag) {
-    setHover(regionHit(region, point.x, point.y));
+    setHover(hitRegion(point));
     return;
   }
   region = adjustRegion(drag.region, drag.hit, point.x - drag.x, point.y - drag.y, bounds);

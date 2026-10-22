@@ -4,6 +4,8 @@ import {
   getCurrentWindow,
   LogicalPosition,
   LogicalSize,
+  PhysicalPosition,
+  PhysicalSize,
   primaryMonitor,
 } from "@tauri-apps/api/window";
 import { IS_MAC } from "../shared/platform.js";
@@ -35,21 +37,26 @@ let lastCursorY = null;
 let running = true;
 let origin = { x: 0, y: 0 };
 let bounds = { width: window.innerWidth, height: window.innerHeight };
+const WINDOWS_OVERDRAW = 2;
 
 // 覆盖主屏、跨桌面可见
 async function initCover() {
   if (!IS_MAC) {
-    // 先用物理坐标定位主屏，再全屏，避免 DPI 换算及工作区限制裁小窗口。
+    // 用物理坐标把覆盖窗向屏幕外扩展，避免透明窗口边缘和选区边框发生裁切。
     const monitor = await primaryMonitor();
     if (!monitor) throw new Error("无法获取主显示器，已取消框选");
-    await self.setPosition(monitor.position);
-    await self.setSize(monitor.size);
-    await self.setFullscreen(true);
-    const innerSize = await self.innerSize();
+    await self.setPosition(new PhysicalPosition(
+      monitor.position.x - WINDOWS_OVERDRAW,
+      monitor.position.y - WINDOWS_OVERDRAW,
+    ));
+    await self.setSize(new PhysicalSize(
+      monitor.size.width + WINDOWS_OVERDRAW * 2,
+      monitor.size.height + WINDOWS_OVERDRAW * 2,
+    ));
     const scale = await self.scaleFactor();
     bounds = {
-      width: Math.round(innerSize.width / scale),
-      height: Math.round(innerSize.height / scale),
+      width: Math.round(monitor.size.width / scale),
+      height: Math.round(monitor.size.height / scale),
     };
   } else {
     const [w, h] = await invoke("primary_size");
@@ -257,6 +264,8 @@ window.addEventListener("pointercancel", (e) => {
 // 键盘：Esc 取消；方向键微调指针位置
 window.addEventListener("keydown", async (e) => {
   if (e.key === "Escape") {
+    e.preventDefault();
+    e.stopImmediatePropagation();
     running = false;
     await self.close();
     return;

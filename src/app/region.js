@@ -4,10 +4,14 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { $, setStatus } from "../core/dom.js";
 import { saveSettings } from "../core/settings.js";
-import { registerRegionEscape, releaseRegionEscape } from "./automation/safety.js";
+import {
+  registerRegionEscape,
+  releaseRegionEscape,
+  waitRegionEscapeAction,
+} from "./automation/safety.js";
 import { withCaptureOverlayLock, captureOverlaysBlocked, forgetCaptureOverlay, waitCaptureWindowCreated } from "./capture-overlays.js";
 import { requestDesktopMenuRefresh } from "./desktop-menu-state.js";
-import { recordingKey } from "../core/state.js";
+import { indicatorEnabled, recordingKey, setIndicatorEnabled } from "../core/state.js";
 
 // 当前预设区域（逻辑坐标）
 export function regionPayload() {
@@ -29,8 +33,9 @@ export function getIndicator() {
 }
 
 // 按钮和全局快捷键共用全屏选区操作。
-export async function useFullscreenRegion() {
+export async function useFullscreenRegion({ restoreFocus = false } = {}) {
   try {
+    await waitRegionEscapeAction();
     const [width, height] = await invoke("primary_size");
     $("x").value = 0;
     $("y").value = 0;
@@ -38,6 +43,8 @@ export async function useFullscreenRegion() {
     $("h").value = height;
     saveSettings();
     broadcastRegion();
+    await restoreEnabledIndicator();
+    if (restoreFocus) await getCurrentWindow().setFocus();
     setStatus(`已设置为全屏区域 ${width}x${height}`, "ok");
   } catch (error) {
     setStatus(`获取屏幕尺寸失败：${error}`, "err");
@@ -57,6 +64,11 @@ async function openRegionPickerLocked() {
   const existing = await WebviewWindow.getByLabel("overlay");
   if (existing) return;
   const mainWin = getCurrentWindow();
+  const indicator = await getIndicator();
+  const indicatorWasVisible = indicator ? await indicator.isVisible() : false;
+  if (indicatorWasVisible) {
+    await indicator.hide();
+  }
   // 记录主窗口当前是否可见：从主窗口发起则框选后恢复，从托盘发起（后台）则保持隐藏
   const wasVisible = await mainWin.isVisible();
   if (wasVisible) {
@@ -91,6 +103,10 @@ async function openRegionPickerLocked() {
     title: "框选区域",
   });
   overlay.once("tauri://error", async (e) => {
+    if (indicatorWasVisible) {
+      await indicator.show();
+      await invoke("raise_capture_auxiliary_window", { label: "indicator" });
+    }
     if (wasVisible) await mainWin.show();
     setStatus(`无法打开框选窗口：${e.payload}`, "err");
   });
@@ -100,11 +116,27 @@ async function openRegionPickerLocked() {
       await mainWin.show();
       await mainWin.setFocus();
     }
+    // Esc 取消时没有 region-selected 事件，由这里恢复原本可见的常驻选区。
+    if (indicatorWasVisible) {
+      await indicator.show();
+      await invoke("raise_capture_auxiliary_window", { label: "indicator" });
+      await registerRegionEscape();
+    } else {
+      await releaseRegionEscape();
+    }
   });
   try {
     await waitCaptureWindowCreated(overlay);
+    await registerRegionEscape();
     await invoke("raise_capture_auxiliary_window", { label: "overlay" });
   } catch (error) {
+    if (indicatorWasVisible) {
+      await indicator.show();
+      await invoke("raise_capture_auxiliary_window", { label: "indicator" });
+      await registerRegionEscape();
+    } else {
+      await releaseRegionEscape();
+    }
     if (wasVisible) await mainWin.show();
     throw error;
   }
@@ -124,6 +156,7 @@ export async function createIndicator() {
     resizable: false,
     focus: false,
     acceptFirstMouse: true,
+    shadow: false,
     width: width || 800,
     height: height || 600,
     title: "选区",
@@ -155,6 +188,28 @@ export async function ensureIndicator() {
   return result;
 }
 
+// 区域变化后仅按用户既有显示意图恢复，不会自行开启显示选区。
+export function restoreEnabledIndicator() {
+  return withCaptureOverlayLock(restoreEnabledIndicatorLocked);
+}
+
+// 在捕获锁内恢复显示，避免和截图、录屏或框选窗口并发。
+async function restoreEnabledIndicatorLocked() {
+  if (!indicatorEnabled) return;
+  if (captureOverlaysBlocked()) return;
+  const win = await getIndicator();
+  if (win) {
+    await win.show();
+    await invoke("raise_capture_auxiliary_window", { label: "indicator" });
+    broadcastRegion();
+    await registerRegionEscape();
+    return;
+  }
+  await createIndicator();
+  await registerRegionEscape();
+  void requestDesktopMenuRefresh();
+}
+
 // 清空当前预设选区：重置坐标并隐藏选区
 export async function clearRegion() {
   if (recordingKey) return;
@@ -184,17 +239,29 @@ async function toggleIndicatorLocked() {
     return;
   }
   const win = await getIndicator();
-  if (win) {
-    if (await win.isVisible()) {
+  const mainWindow = getCurrentWindow();
+  const restoreMainFocus = await mainWindow.isVisible();
+  if (indicatorEnabled) {
+    setIndicatorEnabled(false);
+    if (win && await win.isVisible()) {
       await win.hide();
-      setStatus("已隐藏选区", "ok");
-    } else {
-      await win.show();
-      await invoke("raise_capture_auxiliary_window", { label: "indicator" });
-      broadcastRegion();
-      setStatus("已显示选区", "ok");
     }
+    await releaseRegionEscape();
+    setStatus("已隐藏选区", "ok");
     return;
   }
-  await createIndicator();
+
+  setIndicatorEnabled(true);
+  if (win) {
+    if (!(await win.isVisible())) {
+      await win.show();
+    }
+    await invoke("raise_capture_auxiliary_window", { label: "indicator" });
+    broadcastRegion();
+  } else {
+    await createIndicator();
+  }
+  await registerRegionEscape();
+  if (restoreMainFocus) await mainWindow.setFocus();
+  setStatus("已显示选区", "ok");
 }

@@ -72,3 +72,12 @@ test("a screen-top edge can be dragged from below the menu bar without jumping",
   assert.equal(regionHit(full, 400, 100), "");
   assert.equal(regionHit(full, 400, 300), "");
 });
+
+test("Windows keeps the transparent hit area close to the visible border", () => {
+  const full = { x: 0, y: 0, width: 800, height: 600 };
+  const options = { inside: 6, topInset: 8, moveWidth: 32, moveHeight: 18 };
+  assert.equal(regionHit(full, 400, 4, 4, options), "n");
+  assert.equal(regionHit(full, 400, 20, 4, options), "");
+  assert.equal(regionHit(full, 40, 10, 4, options), "");
+  assert.equal(regionHit(full, 10, 10, 4, options), "move");
+});
