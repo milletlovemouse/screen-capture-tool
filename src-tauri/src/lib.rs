@@ -31,9 +31,10 @@ pub fn run() {
         })
         .on_menu_event(|_app, _event| {
             #[cfg(target_os = "macos")]
-            if !platform::macos::handle_app_menu_event(_app, &_event) {
-                platform::macos::handle_tray_menu_event(_app, _event);
+            if platform::macos::handle_app_menu_event(_app, &_event) {
+                return;
             }
+            platform::desktop_menu::handle_tray_menu_event(_app, &_event);
         })
         .invoke_handler(tauri::generate_handler![
             commands::update_tray_menu,

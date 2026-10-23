@@ -197,11 +197,11 @@ async function initializeMainWindow() {
     }
   }
 
-  // 接收 macOS 原生状态栏菜单操作。
+  // 托盘菜单由原生菜单事件统一转发，避免平台回调实现差异。
+  await getCurrentWindow().listen("desktop-menu-action", (event) => {
+    void handleDesktopMenuAction(event.payload);
+  });
   if (IS_MAC) {
-    await getCurrentWindow().listen("desktop-menu-action", (event) => {
-      void handleDesktopMenuAction(event.payload);
-    });
     await getCurrentWindow().listen("app-menu-action", (event) => {
       void handleAppMenuAction(event.payload);
     });

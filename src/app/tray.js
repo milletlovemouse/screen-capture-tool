@@ -60,13 +60,11 @@ async function desktopMenuState() {
 }
 
 function desktopMenuItem(id, text, icon, options = {}) {
-  const { action, ...itemOptions } = options;
   return {
     id,
     text,
     ...(IS_MAC ? { icon } : {}),
-    ...itemOptions,
-    ...(!IS_MAC && action ? { action } : {}),
+    ...options,
   };
 }
 
@@ -112,7 +110,6 @@ async function createDesktopTrayMenu({
         icon,
         {
           enabled: id !== "record" || !isRecordingBusy,
-          action: () => handleDesktopMenuAction(id),
         }
         ))),
         ...(items.length ? [
@@ -125,7 +122,6 @@ async function createDesktopTrayMenu({
             : running ? NativeIcon.StopProgress : NativeIcon.StatusAvailable,
           {
             enabled: !stopping,
-            action: () => handleDesktopMenuAction(`automation:${id}`),
           }
           ))),
           { item: "Separator" },
@@ -133,15 +129,13 @@ async function createDesktopTrayMenu({
         await menuItem(
           "settings",
           "设置",
-          NativeIcon.PreferencesGeneral,
-          { action: () => handleDesktopMenuAction("settings") }
+          NativeIcon.PreferencesGeneral
         ),
         { item: "Separator" },
         await menuItem(
           "quit",
           "退出",
-          NativeIcon.StopProgress,
-          { action: () => handleDesktopMenuAction("quit") }
+          NativeIcon.StopProgress
         ),
       ],
     });

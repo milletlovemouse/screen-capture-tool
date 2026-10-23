@@ -71,7 +71,7 @@ test("托盘同步脚本名称、增删，并避免重复刷新", async () => {
   assert.equal(app.calls.at(-1).command, "update_tray_menu");
 });
 
-test("Windows 托盘菜单使用无图标的普通菜单项", async () => {
+test("Windows 托盘菜单使用无图标菜单项并由原生事件统一分发", async () => {
   const app = await menuHarness(false);
   const items = JSON.parse(app.evaluate(`JSON.stringify(menus.at(-1).items
     .filter((item) => item.id)
@@ -82,7 +82,7 @@ test("Windows 托盘菜单使用无图标的普通菜单项", async () => {
   assert.equal(items.find(({ id }) => id === "record").text, "开始录屏");
   assert.equal(
     app.evaluate('typeof menus.at(-1).items.find(({ id }) => id === "capture").action'),
-    "function"
+    "undefined"
   );
   await app.evaluate(`
     globalThis.settingsOpened = false;
@@ -92,7 +92,7 @@ test("Windows 托盘菜单使用无图标的普通菜单项", async () => {
     getCurrentWindow = () => ({
       show: async () => {}, unminimize: async () => {}, setFocus: async () => {},
     });
-    menus.at(-1).items.find(({ id }) => id === "settings").action();
+    handleDesktopMenuAction("settings");
   `);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(app.evaluate("settingsOpened"), true);

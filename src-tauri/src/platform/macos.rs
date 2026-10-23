@@ -234,23 +234,6 @@ pub fn update_tray_menu(
     result
 }
 
-/// 将状态栏菜单点击交给主窗口已有的操作入口。
-pub fn handle_tray_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
-    let action = event.id().as_ref();
-    let is_tray_action = matches!(
-        action,
-        "capture" | "pick" | "record" | "toggle" | "settings" | "quit"
-    ) || action.starts_with("automation:");
-    if !is_tray_action {
-        return;
-    }
-    if let Some(window) = app.get_webview_window("main") {
-        if let Err(error) = window.emit("desktop-menu-action", action) {
-            eprintln!("发送状态栏菜单操作失败：{error}");
-        }
-    }
-}
-
 /// 点击 Dock 应用图标时恢复隐藏或最小化的主窗口。
 pub fn reopen(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {

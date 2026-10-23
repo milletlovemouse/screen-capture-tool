@@ -1,4 +1,5 @@
 //! 平台相关实现：系统框架声明、macOS 集成与 Windows 原生输入/录屏。
+pub mod desktop_menu;
 pub mod key_mapping;
 #[cfg(target_os = "macos")]
 pub mod macos;
