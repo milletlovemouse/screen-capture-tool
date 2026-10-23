@@ -21,7 +21,8 @@
         "compression": "lzma"
       },
       "wix": {
-        "upgradeCode": "88370d1d-d14c-5c08-b1cc-9eeb992da871"
+        "upgradeCode": "88370d1d-d14c-5c08-b1cc-9eeb992da871",
+        "language": "zh-CN"
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
