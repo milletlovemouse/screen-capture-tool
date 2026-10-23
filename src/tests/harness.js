@@ -22,6 +22,7 @@ const MODULES = [
   "app/shortcuts.js",
     "app/permissions.js",
     "app/updater.js",
+    "app/theme.js",
   "app/navigation.js",
     "app/scrollbars.js",
     "app/tray.js",
@@ -133,8 +134,9 @@ export function harness(isMac = true) {
       setItem: (key, value) => storage.set(key, value),
     },
     document: {
-      documentElement: { classList: { toggle() {} } },
+      documentElement: { classList: { toggle() {} }, style: {}, setAttribute() {} },
       addEventListener() {},
+      querySelectorAll: () => [],
       querySelector: () => ({
         classList: { contains: () => false },
         focus() {},

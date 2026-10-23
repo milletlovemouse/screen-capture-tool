@@ -26,6 +26,7 @@ test("macOS transparent title bar keeps a dedicated drag region", async () => {
 
 test("Windows uses a transparent custom title bar without a logo", async () => {
   const html = await readFile(new URL("../../index.html", import.meta.url), "utf8");
+  const base = await readFile(new URL("../styles/base.css", import.meta.url), "utf8");
   const layout = await readFile(new URL("../styles/layout.css", import.meta.url), "utf8");
   const windowsConfig = JSON.parse(await readFile(new URL("../../src-tauri/tauri.windows.conf.json", import.meta.url), "utf8"));
 
@@ -35,7 +36,9 @@ test("Windows uses a transparent custom title bar without a logo", async () => {
   assert.match(layout, /\.platform-windows \.window-drag-region\s*\{[^]*left:\s*160px/);
   assert.match(layout, /\.platform-windows \.sidebar\s*\{[^]*padding-top:\s*12px/);
   assert.match(layout, /\.platform-windows \.content\s*\{[^]*padding-top:\s*44px/);
-  assert.match(layout, /\.platform-windows \.nav-item:focus,[^]*#toggle-sidebar:focus\s*\{[^]*outline:\s*none/);
+  assert.match(base, /:where\(button, input, select, textarea\):focus\s*\{[^]*outline:\s*none/);
+  assert.match(base, /:where\(button, input, select, textarea\):focus-visible\s*\{[^]*outline:\s*2px solid var\(--focus-ring\)/);
+  assert.match(layout, /\.nav-item:focus-visible\s*\{[^]*outline:\s*none[^]*background:\s*var\(--nav-hover-bg\)/);
   const controls = html.match(/<div class="window-controls"[^]*?<\/div>/)?.[0] || "";
   assert.doesNotMatch(controls, /<img\b|brand-logo/);
 });

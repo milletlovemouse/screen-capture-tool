@@ -11,9 +11,9 @@
   align-items: center;
   gap: 7px;
   padding: 22px 12px;
-  border: 1px dashed #414451;
+  border: 1px dashed var(--border);
   border-radius: 10px;
-  background: #1e2026;
+  background: var(--panel-bg);
   color: var(--muted);
   font-size: 12px;
   text-align: center;
@@ -26,20 +26,20 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: #2b3040;
-  color: #8baded;
+  background: rgba(79, 140, 255, 0.15);
+  color: var(--accent);
   font-size: 20px;
   font-weight: 300;
 }
 
 .automation-steps-empty strong {
-  color: #c7cbd6;
+  color: var(--fg);
   font-size: 12px;
   font-weight: 500;
 }
 
 .automation-steps-empty span {
-  color: #83899a;
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -50,9 +50,9 @@
   align-items: center;
   gap: 8px 10px;
   padding: 12px;
-  border: 1px solid #3a3d47;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #292b33;
+  background: var(--card);
   transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s ease,
     border-color 0.12s ease;
 }
@@ -63,19 +63,19 @@
   left: 54px;
   bottom: -13px;
   height: 12px;
-  border-left: 1px dashed #50576a;
+  border-left: 1px dashed var(--border);
 }
 
 .automation-step:hover {
-  border-color: #4d5364;
+  border-color: var(--accent);
 }
 
 /* 拖动中的节点：抬起并跟随指针，不参与补间 */
 .automation-step.dragging {
   z-index: 3;
   transition: none;
-  border-color: #6b89bf;
-  background: #2f323c;
+  border-color: var(--accent);
+  background: var(--elevated-bg);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
 }
 
@@ -96,15 +96,15 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #6b7082;
+  color: var(--muted);
   cursor: grab;
   touch-action: none;
   user-select: none;
 }
 
 .step-drag:hover {
-  background: #30323c;
-  color: #a5a9b7;
+  background: var(--hover-bg);
+  color: var(--fg);
 }
 
 .step-drag:active {
@@ -157,9 +157,9 @@
   width: auto;
   min-width: 92px;
   padding: 5px 8px;
-  border: 1px solid #3f414c;
+  border: 1px solid var(--border);
   border-radius: 7px;
-  background: #1d1e24;
+  background: var(--input-bg);
   color: var(--fg);
   font-size: 12px;
   cursor: pointer;
@@ -167,18 +167,17 @@
 }
 
 .step-type:hover {
-  border-color: #555867;
-  background: #23242b;
+  border-color: var(--accent);
+  background: var(--hover-bg);
 }
 
 .step-type:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
 .step-type.menu-open {
   border-color: var(--accent);
-  background: #23242b;
+  background: var(--hover-bg);
 }
 
 .step-type-icon {
@@ -217,9 +216,9 @@
   flex-direction: column;
   gap: 2px;
   padding: 5px;
-  border: 1px solid #43454f;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #2b2d36;
+  background: var(--elevated-bg);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
   animation: step-menu-in 0.12s ease;
 }
@@ -244,7 +243,7 @@
 }
 
 .step-type-option:hover {
-  background: #363944;
+  background: var(--hover-bg);
 }
 
 .step-type-option .step-type-icon svg {
@@ -289,7 +288,7 @@
   flex-direction: row;
   align-items: center;
   gap: 6px;
-  color: #9299aa;
+  color: var(--muted);
 }
 
 .step-coordinate .step-number {
@@ -315,10 +314,10 @@
   align-items: center;
   gap: 4px;
   padding: 3px 4px 3px 9px;
-  border: 1px solid #45485a;
+  border: 1px solid var(--border);
   border-radius: 7px;
-  background: #30323d;
-  color: #e3e5ee;
+  background: var(--elevated-bg);
+  color: var(--fg);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -333,14 +332,14 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #9299aa;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1;
 }
 
 .step-key-chip button:hover {
-  background: rgba(255, 107, 107, 0.18);
-  color: #ff8a8a;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .step-keys-record.recording {
@@ -374,8 +373,9 @@
 }
 
 .step-remove:hover {
-  border-color: #ff6b6b;
-  color: #ff8a8a;
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .automation-editor-actions {
@@ -383,19 +383,14 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 18px;
-  border-top: 1px solid #353741;
-  background: #292a32;
+  border-top: 1px solid var(--border);
+  background: var(--panel-bg);
 }
 
 .automation-editor-actions button {
   min-height: 34px;
   min-width: 70px;
   border-radius: 8px;
-}
-
-#view-automation button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 @container (min-width: 580px) {

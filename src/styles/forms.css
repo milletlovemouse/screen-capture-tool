@@ -2,7 +2,7 @@
 /* 只读输入框（目录/快捷键）样式区分 */
 input[readonly] {
   cursor: default;
-  background: #16171b;
+  background: var(--input-readonly-bg);
 }
 
 #shortcut {
@@ -49,7 +49,7 @@ label.block {
 }
 
 input {
-  background: #1b1c21;
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--fg);
@@ -63,7 +63,7 @@ select {
   padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #1b1c21;
+  background: var(--input-bg);
   color: var(--fg);
   font-size: 13px;
 }
@@ -122,6 +122,8 @@ button {
   padding: 8px 14px;
   font-size: 13px;
   cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+    opacity 0.12s ease;
 }
 
 button.ghost {
@@ -130,6 +132,156 @@ button.ghost {
   color: var(--fg);
 }
 
+/* 实心按钮加深背景，幽灵按钮用强调色描边和浅底，危险按钮用红色反馈。 */
 button:hover {
-  opacity: 0.9;
+  background: var(--accent-hover);
+}
+
+button.ghost:hover {
+  background: var(--button-ghost-hover-bg);
+  border-color: var(--button-ghost-hover-border);
+  color: var(--button-ghost-hover-color);
+}
+
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+button.danger:hover {
+  background: var(--danger-hover);
+}
+
+button.danger.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--danger);
+}
+
+button.danger.ghost:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* 图标按钮保持原有透明底，悬停时仅用浅底强调。 */
+button.icon-btn:hover {
+  background: var(--button-ghost-hover-bg);
+  border-color: var(--button-ghost-hover-border);
+  color: var(--button-ghost-hover-color);
+}
+
+button:disabled,
+button.ghost:disabled,
+button.danger:disabled {
+  cursor: default;
+  opacity: 0.55;
+  background: var(--accent);
+}
+
+button.ghost:disabled,
+button.danger.ghost:disabled {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+/* 主题选择卡片：预览图 + 名称，选中用描边高亮，替代原生 select。 */
+.theme-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.theme-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+}
+
+.theme-preview {
+  position: relative;
+  width: 108px;
+  height: 68px;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  transition: border-color 0.12s ease;
+}
+
+.theme-option:hover .theme-preview {
+  border-color: var(--muted);
+}
+
+.theme-option.is-active .theme-preview {
+  border-color: var(--accent);
+}
+
+.theme-preview-bar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.theme-preview-dots {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 5px;
+}
+
+.theme-preview-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c7ccd4;
+}
+
+.theme-preview-light {
+  background: #f4f5f7;
+}
+
+.theme-preview-dark {
+  background: #1e1f24;
+}
+
+.theme-preview-dark .theme-preview-dots i {
+  background: #5a5d68;
+}
+
+/* 跟随系统：左浅右深对半预览。 */
+.theme-preview-system {
+  background: linear-gradient(to right, #f4f5f7 50%, #1e1f24 50%);
+}
+
+.theme-preview-system .theme-preview-dots i:nth-child(n + 2) {
+  background: #5a5d68;
+}
+
+.theme-option-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.theme-option.is-active .theme-option-label {
+  color: var(--fg);
+  font-weight: 600;
 }

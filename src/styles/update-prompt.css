@@ -19,7 +19,7 @@
   padding: 20px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #24262d;
+  background: var(--dialog-bg);
   outline: none;
 }
 
@@ -45,7 +45,7 @@
   justify-content: space-between;
   padding: 9px 11px;
   border-radius: 7px;
-  background: #292b32;
+  background: var(--dialog-item-bg);
   color: var(--muted);
   font-size: 13px;
 }
@@ -84,7 +84,7 @@
   margin-top: 15px;
   overflow: hidden;
   border-radius: 999px;
-  background: #191a1f;
+  background: var(--track-bg);
 }
 
 .update-progress[hidden] {

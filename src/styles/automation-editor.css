@@ -8,8 +8,8 @@
   padding: 0;
   overflow: hidden;
   border-radius: 14px;
-  background: #25262d;
-  border-color: #3c3e48;
+  background: var(--card);
+  border-color: var(--border);
 }
 
 .automation-editor.hidden {
@@ -65,8 +65,8 @@
 .automation-editor-head {
   margin: 0;
   padding: 16px 18px;
-  border-bottom: 1px solid #353741;
-  background: #292a32;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
 }
 
 .automation-editor-head > svg {
@@ -98,9 +98,8 @@
   min-height: 34px;
   padding: 7px 10px;
   border-radius: 8px;
-  border-color: #3e404b;
-  background: #1d1e24;
-  color-scheme: dark;
+  border-color: var(--border);
+  background: var(--input-bg);
 }
 
 .automation-editor input:focus {
@@ -110,7 +109,7 @@
 }
 
 .automation-editor input::placeholder {
-  color: #777b89;
+  color: var(--muted);
 }
 
 .automation-basic-fields .btn-icon {
@@ -126,8 +125,8 @@
 }
 
 .automation-flow-section {
-  border-top: 1px solid #353741;
-  background: #22232a;
+  border-top: 1px solid var(--border);
+  background: var(--panel-bg);
 }
 
 .automation-steps-head {
@@ -145,8 +144,8 @@
   margin-left: auto;
   padding: 2px 7px;
   border-radius: 5px;
-  background: #30323c;
-  color: #a5a9b7;
+  background: var(--elevated-bg);
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -163,9 +162,9 @@
   min-width: 0;
   min-height: 35px;
   padding: 7px 5px;
-  border-color: #3a3d48;
+  border-color: var(--border);
   border-radius: 8px;
-  background: #2b2d36;
+  background: var(--elevated-bg);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -181,11 +180,11 @@
 .automation-add-buttons #add-record-step svg { color: #e58e98; }
 
 .automation-add-buttons button:hover {
-  border-color: #6b89bf;
-  background: #323744;
+  border-color: var(--accent);
+  background: var(--hover-bg);
 }
 
 .step-add-mark {
-  color: #83899a;
+  color: var(--muted);
   font-size: 13px;
 }

@@ -10,6 +10,16 @@ import { normalizeAutomationScripts } from "../app/automation/model.js";
 const STORE_KEY = "sct-settings";
 let closeAction = "";
 let skippedUpdateVersion = "";
+let theme = "system";
+
+export function getStoredTheme() {
+  return theme;
+}
+
+// 主题取值由主题模块负责应用，这里仅在加载/持久化时同步。
+export function setStoredTheme(value) {
+  theme = value === "light" || value === "dark" ? value : "system";
+}
 
 export function getCloseAction() {
   return closeAction;
@@ -48,6 +58,7 @@ export function loadSettings() {
     if (s.collapsed) document.querySelector(".layout").classList.add("collapsed");
     closeAction = s.closeAction === "tray" || s.closeAction === "quit" ? s.closeAction : "";
     skippedUpdateVersion = typeof s.skippedUpdateVersion === "string" ? s.skippedUpdateVersion : "";
+    theme = s.theme === "light" || s.theme === "dark" ? s.theme : "system";
     setPinned(!!s.pinned);
     setAutomationScripts(normalizeAutomationScripts(s.automations));
   } catch {
@@ -72,6 +83,7 @@ export function saveSettings() {
     collapsed: document.querySelector(".layout").classList.contains("collapsed"),
     closeAction,
     skippedUpdateVersion,
+    theme,
     pinned,
     automations: automationScripts,
   };

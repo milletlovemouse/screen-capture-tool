@@ -20,7 +20,7 @@
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: #24252b;
+  background: var(--card);
 }
 
 .automation-home-item .automation-item-name,
@@ -44,16 +44,16 @@
   min-height: 62px;
   padding: 10px 14px;
   gap: 12px;
-  border-color: #35363f;
+  border-color: var(--border);
   border-radius: 11px;
-  background: #282a31;
+  background: var(--card);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .automation-list-item:hover {
-  border-color: #444955;
-  background: #2e3038;
+  border-color: var(--border-hover);
+  background: var(--hover-bg);
 }
 
 .automation-list {
@@ -61,13 +61,13 @@
 }
 
 .automation-list-item.is-editing {
-  border-color: #5273a9;
-  background: #2b3445;
-  border-left: 3px solid #6897ed;
+  border-color: var(--accent);
+  background: rgba(79, 140, 255, 0.12);
+  border-left: 3px solid var(--accent);
 }
 
 .automation-list-item.is-editing:hover {
-  background: #303a4d;
+  background: rgba(79, 140, 255, 0.18);
 }
 
 .automation-list-info {
@@ -95,7 +95,7 @@
 
 .automation-list-summary .automation-item-meta {
   padding-left: 12px;
-  border-left: 1px solid #454751;
+  border-left: 1px solid var(--border);
   font-size: 11px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -105,7 +105,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #9299aa;
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -114,7 +114,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #747b8c;
+  background: var(--muted);
 }
 
 .automation-script-state.running { color: #f197a0; }
@@ -148,28 +148,23 @@
   border-color: transparent;
   border-radius: 8px;
   background: transparent;
-  color: #aeb5c5;
+  color: var(--fg);
   line-height: 18px;
   transition: color 0.15s ease, background 0.15s ease;
 }
 
 .automation-list-item .automation-item-actions button:hover {
-  background: rgba(139, 168, 224, 0.12);
-  color: #c6d9ff;
+  background: var(--button-ghost-hover-bg);
+  color: var(--button-ghost-hover-color);
 }
 
 .automation-list-item .automation-item-actions .danger {
-  color: #d98b94;
+  color: var(--danger);
 }
 
 .automation-list-item .automation-item-actions .danger:hover {
-  background: rgba(255, 107, 125, 0.1);
-  color: #ff9ba9;
-}
-
-.automation-list-item .automation-item-actions button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 @media (max-width: 480px) {
@@ -189,14 +184,14 @@
   align-items: stretch;
   gap: 14px;
   padding: 14px;
-  border-color: #36373f;
+  border-color: var(--border);
   border-radius: 12px;
-  background: #24252b;
+  background: var(--card);
   transition: border-color 0.15s ease;
 }
 
 .automation-home-item:hover {
-  border-color: #474a56;
+  border-color: var(--border-hover);
 }
 
 .automation-home-item:has(.automation-run-toggle.recording) {
@@ -294,24 +289,25 @@
   flex-shrink: 0;
   min-height: 34px;
   padding: 7px 11px;
-  border: 1px solid #454650;
+  border: 1px solid var(--border);
   border-radius: 9px;
-  background: #303139;
+  background: var(--elevated-bg);
   color: var(--fg);
   font-size: 12px;
   white-space: nowrap;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.automation-run-toggle:hover:not(:disabled) {
+  background: var(--run-hover-bg);
+  border-color: var(--run-hover-border);
+  color: var(--run-hover-color);
 }
 
 .automation-run-toggle .rec-dot {
   width: 9px;
   height: 9px;
   flex-shrink: 0;
-}
-
-.automation-run-toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
 }
 
 .automation-run-toggle:disabled {
@@ -345,9 +341,9 @@
   flex-wrap: wrap;
   gap: 3px;
   padding: 3px;
-  border: 1px solid #33353e;
+  border: 1px solid var(--border);
   border-radius: 9px;
-  background: #1c1d23;
+  background: var(--panel-bg);
 }
 
 .automation-mode-option,
@@ -383,7 +379,7 @@
 
 .automation-run-options:not(:disabled) .automation-mode-option:hover {
   color: var(--fg);
-  background: #292b34;
+  background: var(--hover-bg);
 }
 
 .automation-mode-option:has(input:focus-visible) {
@@ -402,10 +398,9 @@
   width: 64px;
   height: 34px;
   padding: 6px 8px;
-  border-color: #3f414c;
+  border-color: var(--border);
   border-radius: 8px;
-  background: #1c1d23;
-  color-scheme: dark;
+  background: var(--input-bg);
   font-variant-numeric: tabular-nums;
 }
 
@@ -419,9 +414,9 @@
 
 .automation-mode-option:has(input:checked),
 .automation-run-options:not(:disabled) .automation-mode-option:has(input:checked):hover {
-  background: rgba(79, 140, 255, 0.18);
-  color: #9bbcff;
-  border: 1px solid rgba(79, 140, 255, 0.3);
+  background: var(--segment-selected-bg);
+  color: var(--segment-selected-color);
+  border: 1px solid var(--segment-selected-border);
 }
 
 @media (prefers-reduced-motion: reduce) {

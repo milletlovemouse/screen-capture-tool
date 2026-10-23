@@ -16,7 +16,7 @@
 .sidebar {
   width: 160px;
   flex-shrink: 0;
-  background: #17181d;
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -115,12 +115,6 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-/* WebView2 会保留鼠标点击后的系统焦点轮廓，侧栏按钮不显示该白边。 */
-.platform-windows .nav-item:focus,
-.platform-windows #toggle-sidebar:focus {
-  outline: none;
-}
-
 .nav-item svg {
   width: 18px;
   height: 18px;
@@ -128,7 +122,13 @@
 }
 
 .nav-item:hover {
-  background: #23252c;
+  background: var(--nav-hover-bg);
+  color: var(--fg);
+}
+
+.nav-item:focus-visible {
+  outline: none;
+  background: var(--nav-hover-bg);
   color: var(--fg);
 }
 
@@ -165,7 +165,7 @@
 }
 
 #toggle-sidebar:hover {
-  background: #23252c;
+  background: var(--nav-hover-bg);
   color: var(--fg);
 }
 
@@ -197,6 +197,8 @@
   flex: 1;
   overflow-y: auto;
   padding: 18px 20px;
+  /* 预留滚动条槽位，避免有无滚动条的页面左右边距不一致。 */
+  scrollbar-gutter: stable;
 }
 
 /* macOS 透明标题栏覆盖在内容上方，左右区域各自延续原有背景色。 */
@@ -256,7 +258,7 @@
 }
 
 .platform-windows .window-controls button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-bg);
 }
 
 .platform-windows .window-controls #window-close:hover {

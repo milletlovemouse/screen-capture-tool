@@ -20,7 +20,7 @@
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: #24262d;
+  background: var(--dialog-bg);
   outline: none;
 }
 
@@ -71,15 +71,15 @@
   align-items: center;
   gap: 10px;
   border: 1px solid var(--border);
-  background: #292b32;
+  background: var(--dialog-item-bg);
   color: var(--fg);
   text-align: left;
 }
 
 .close-action:hover,
 .close-action:focus-visible {
-  border-color: #5d79aa;
-  background: #2e3139;
+  border-color: var(--accent);
+  background: var(--hover-bg);
   opacity: 1;
   outline: none;
 }
@@ -104,7 +104,7 @@
 }
 
 .close-action-icon-danger {
-  background: #e5484d;
+  background: var(--danger);
 }
 
 .close-action-copy {

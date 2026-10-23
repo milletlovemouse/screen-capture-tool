@@ -33,7 +33,7 @@ h3 {
 
 .action-card:hover {
   transform: translateY(-2px);
-  border-color: var(--accent);
+  border-color: var(--border-hover);
 }
 
 .action-card-top {
@@ -93,7 +93,9 @@ h3 {
 }
 
 .rec-btn:hover {
-  border-color: #ff6b6b;
+  background: var(--record-hover-bg);
+  border-color: var(--record-hover-border);
+  color: var(--fg);
 }
 
 .rec-dot {

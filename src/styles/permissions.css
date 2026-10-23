@@ -3,7 +3,7 @@
 }
 
 .card:hover {
-  border-color: #45474f;
+  border-color: var(--border-hover);
 }
 
 /* 系统权限设置项 */
@@ -18,7 +18,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-top: 1px solid #33353e;
+  border-top: 1px solid var(--border);
 }
 
 .permission-row:first-of-type {
@@ -57,7 +57,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #747b8c;
+  background: var(--muted);
 }
 
 .permission-status.granted {

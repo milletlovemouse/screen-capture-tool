@@ -30,6 +30,7 @@ import {
   updateHomeShortcuts,
 } from "./app/shortcuts.js";
 import { refreshPermissions, setupPermissions } from "./app/permissions.js";
+import { setupTheme } from "./app/theme.js";
 import { checkForUpdatesFromMenu, setupAbout } from "./app/updater.js";
 import { setupNav, setupSidebar } from "./app/navigation.js";
 import { setupAutoHideScrollbars } from "./app/scrollbars.js";
@@ -168,6 +169,7 @@ async function initializeMainWindow() {
   document.documentElement.classList.toggle("platform-macos", IS_MAC);
   document.documentElement.classList.toggle("platform-windows", !IS_MAC);
   loadSettings();
+  setupTheme();
   setAutomationMenuAction(toggleAutomation);
   if (!IS_MAC) {
     const screenInfo = document.querySelector('.permission-row[data-perm="screen"] .permission-desc');
