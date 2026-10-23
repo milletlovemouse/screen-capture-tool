@@ -4,12 +4,14 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleDisplayName</key>
-  <string>截图工具</string>
+  <string>ScreenCaptureTool</string>
   <key>CFBundleName</key>
-  <string>截图工具</string>
+  <string>ScreenCaptureTool</string>
   <key>CFBundleDevelopmentRegion</key>
-  <string>zh_CN</string>
+  <string>zh-Hans</string>
   <key>CFBundleAllowMixedLocalizations</key>
+  <true/>
+  <key>LSHasLocalizedDisplayName</key>
   <true/>
 </dict>
 </plist>

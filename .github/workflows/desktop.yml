@@ -71,6 +71,20 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Normalize Windows artifact names
+        if: matrix.platform == 'windows'
+        shell: python
+        run: |
+          from pathlib import Path
+
+          bundle = Path("src-tauri/target/${{ matrix.target }}/release/bundle")
+          for artifact in sorted(bundle.rglob("*截图工具*"), key=lambda path: len(path.parts), reverse=True):
+              target = artifact.with_name(artifact.name.replace("截图工具", "ScreenCaptureTool", 1))
+              artifact.rename(target)
+
+              signature = Path(f"{artifact}.sig")
+              if signature.exists():
+                  signature.rename(Path(f"{target}.sig"))
       - if: matrix.platform == 'macos'
         shell: bash
         run: |

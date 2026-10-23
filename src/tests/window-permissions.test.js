@@ -33,7 +33,7 @@ test("Windows uses a transparent custom title bar without a logo", async () => {
   assert.match(layout, /\.platform-windows \.window-drag-region\s*\{/);
   assert.match(layout, /\.platform-windows \.window-controls\s*\{/);
   assert.match(layout, /\.platform-windows \.window-drag-region\s*\{[^]*left:\s*160px/);
-  assert.match(layout, /\.platform-windows \.sidebar\s*\{[^]*padding-top:\s*2px/);
+  assert.match(layout, /\.platform-windows \.sidebar\s*\{[^]*padding-top:\s*12px/);
   assert.match(layout, /\.platform-windows \.content\s*\{[^]*padding-top:\s*44px/);
   assert.match(layout, /\.platform-windows \.nav-item:focus,[^]*#toggle-sidebar:focus\s*\{[^]*outline:\s*none/);
   const controls = html.match(/<div class="window-controls"[^]*?<\/div>/)?.[0] || "";
