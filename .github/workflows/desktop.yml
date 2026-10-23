@@ -78,13 +78,20 @@ jobs:
           from pathlib import Path
 
           bundle = Path("src-tauri/target/${{ matrix.target }}/release/bundle")
-          for artifact in sorted(bundle.rglob("*截图工具*"), key=lambda path: len(path.parts), reverse=True):
+          signatures = sorted(bundle.rglob("*截图工具*.sig"))
+          artifacts = sorted(
+              (path for path in bundle.rglob("*截图工具*") if path.suffix != ".sig"),
+              key=lambda path: len(path.parts),
+              reverse=True,
+          )
+
+          for artifact in artifacts:
               target = artifact.with_name(artifact.name.replace("截图工具", "ScreenCaptureTool", 1))
               artifact.rename(target)
 
-              signature = Path(f"{artifact}.sig")
-              if signature.exists():
-                  signature.rename(Path(f"{target}.sig"))
+          for signature in signatures:
+              target = signature.with_name(signature.name.replace("截图工具", "ScreenCaptureTool", 1))
+              signature.rename(target)
       - if: matrix.platform == 'macos'
         shell: bash
         run: |
