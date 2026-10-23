@@ -42,6 +42,11 @@
   height: 18px;
 }
 
+.close-prompt-dismiss:hover {
+  background: var(--hover-bg);
+  color: var(--fg);
+}
+
 .close-prompt-header {
   padding-right: 36px;
 }
