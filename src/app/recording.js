@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getAudioEnabled, getAudioSourceId } from "../core/settings.js";
 import { $, setStatus } from "../core/dom.js";
 import { notifySavedFile } from "./capture.js";
 import { regionPayload } from "./region.js";
@@ -94,6 +95,7 @@ export async function toggleRecording() {
   }
   setRecordingBusy(true);
   updateRecUI();
+  $("record-toggle")?.removeAttribute("title");
   try {
     if (recordingActive) {
       stopRecordingMonitor();
@@ -115,7 +117,11 @@ export async function toggleRecording() {
       const prefix = $("prefix").value || "recording";
       await hideIndicatorForRecording();
       try {
-        await invoke("start_recording", { x, y, width, height, dir, prefix });
+        await invoke("start_recording", {
+          x, y, width, height, dir, prefix,
+          audioEnabled: getAudioEnabled(),
+          audioSourceId: getAudioSourceId(),
+        });
       } catch (e) {
         await restoreIndicatorAfterRecording();
         throw e;
@@ -126,6 +132,8 @@ export async function toggleRecording() {
       setStatus("正在录屏…（再次点击停止并保存）", "ok");
     }
   } catch (e) {
+    const button = $("record-toggle");
+    if (button) button.title = String(e);
     setStatus(`录屏操作失败：${e}`, "err");
   } finally {
     setRecordingBusy(false);

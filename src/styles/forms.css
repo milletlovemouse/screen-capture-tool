@@ -19,8 +19,8 @@ h2 {
 
 .card {
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 16px;
   padding: 14px;
   margin-bottom: 14px;
 }
@@ -112,6 +112,113 @@ input:focus {
 
 .field-dir {
   flex: 2;
+}
+
+#refresh-audio-sources {
+  margin-left: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* 音频开关独立于设备表格，关闭后仍可选择下次使用的设备。 */
+.audio-recording-switch {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--fg);
+}
+
+.audio-recording-switch input {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
+  padding: 3px;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--track-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transition: background-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.audio-recording-switch input::before {
+  content: "";
+  display: block;
+  width: 26px;
+  height: 18px;
+  border-radius: 999px;
+  background: #f5f5f5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.audio-recording-switch input:checked {
+  background: #0a84ff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.audio-recording-switch input:checked::before {
+  transform: translateX(12px);
+}
+
+.audio-recording-switch input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-recording-switch input,
+  .audio-recording-switch input::before {
+    transition: none;
+  }
+}
+
+.audio-sources-table {
+  width: calc(100% + 28px);
+  margin: 12px -14px -14px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border-radius: 0 0 16px 16px;
+  font-size: 12px;
+  background: var(--card);
+}
+
+.audio-sources-table th,
+.audio-sources-table td {
+  padding: 6px 14px;
+  text-align: left;
+}
+
+.audio-sources-table th {
+  background: var(--dialog-item-bg);
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.audio-sources-table td:last-child {
+  width: 40%;
+  color: var(--muted);
+}
+
+.audio-sources-table tbody tr {
+  cursor: pointer;
+}
+
+.audio-sources-table tbody tr[aria-checked="true"] {
+  background: var(--table-selected-bg);
+}
+
+.audio-sources-table tbody tr:hover {
+  background: var(--table-row-hover-bg);
+}
+
+.audio-sources-table tbody tr[aria-checked="true"]:hover {
+  background: var(--table-selected-bg);
 }
 
 button {

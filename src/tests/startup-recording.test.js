@@ -14,6 +14,7 @@ function startupRecordingHarness(active) {
     setupSidebar = () => {};
     setupAutomation = () => {};
     setupPermissions = () => {};
+    setupAudioSources = () => {};
     setupTray = async () => {};
     registerStartupShortcuts = async () => {};
     refreshPermissions = async () => {};

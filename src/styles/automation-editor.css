@@ -4,12 +4,12 @@
 }
 
 .card.automation-editor {
+  --editor-divider-inset: 18px;
   margin-top: 14px;
   padding: 0;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--card);
-  border-color: var(--border);
 }
 
 .automation-editor.hidden {
@@ -58,15 +58,41 @@
   display: none;
 }
 
-.automation-editor.collapsed .automation-editor-head {
-  border-bottom: none;
+.automation-editor.collapsed .automation-editor-head::after {
+  display: none;
 }
 
 .automation-editor-head {
   margin: 0;
   padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel-bg);
+}
+
+/* 分界线与内容边距对齐，不延伸至面板边缘。 */
+.automation-editor-head,
+.automation-flow-section,
+.automation-editor-actions {
+  position: relative;
+}
+
+.automation-editor-head::after,
+.automation-flow-section::before,
+.automation-editor-actions::before {
+  content: "";
+  position: absolute;
+  left: var(--editor-divider-inset);
+  right: var(--editor-divider-inset);
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+.automation-editor-head::after {
+  bottom: 0;
+}
+
+.automation-flow-section::before,
+.automation-editor-actions::before {
+  top: 0;
 }
 
 .automation-editor-head > svg {
@@ -122,11 +148,6 @@
 .automation-editor .hint {
   font-size: 11px;
   line-height: 1.6;
-}
-
-.automation-flow-section {
-  border-top: 1px solid var(--border);
-  background: var(--panel-bg);
 }
 
 .automation-steps-head {

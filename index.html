@@ -211,6 +211,23 @@
 
           <div class="card">
             <div class="card-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>
+              <h3>音频来源</h3>
+              <button id="refresh-audio-sources" type="button" class="ghost">刷新设备</button>
+            </div>
+            <label class="audio-recording-switch">
+              <span>录制音频</span>
+              <input id="audio-enabled" type="checkbox" role="switch" aria-describedby="audio-source-hint" />
+            </label>
+            <p class="hint" id="audio-source-hint">默认关闭，仅录制画面；启用后录制所选来源的声音。关闭时保留设备选择，更改从下次录屏生效。</p>
+            <table id="audio-sources-table" class="audio-sources-table" aria-label="录制音频来源" aria-describedby="audio-source-hint">
+              <thead><tr><th scope="col">名称</th><th scope="col">类型</th></tr></thead>
+              <tbody id="audio-sources-body"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6"/></svg>
               <h3>快捷键</h3>
             </div>

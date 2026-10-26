@@ -37,6 +37,7 @@ pub fn run() {
             platform::desktop_menu::handle_tray_menu_event(_app, &_event);
         })
         .invoke_handler(tauri::generate_handler![
+            commands::audio::list_audio_sources,
             commands::update_tray_menu,
             commands::automation_cancel::begin_automation_operation,
             commands::automation_cancel::cancel_automation_operation,

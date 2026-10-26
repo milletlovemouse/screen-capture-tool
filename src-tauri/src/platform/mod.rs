@@ -5,6 +5,10 @@ pub mod key_mapping;
 pub mod macos;
 #[cfg(target_os = "macos")]
 pub mod macos_ffi;
+#[cfg(target_os = "macos")]
+pub mod macos_recording;
+#[cfg(target_os = "windows")]
+pub mod windows_audio;
 #[cfg(target_os = "windows")]
 pub mod windows_input;
 #[cfg(target_os = "windows")]

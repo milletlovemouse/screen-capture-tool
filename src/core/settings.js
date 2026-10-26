@@ -11,6 +11,30 @@ const STORE_KEY = "sct-settings";
 let closeAction = "";
 let skippedUpdateVersion = "";
 let theme = "system";
+let audioSourceId = "system";
+let audioEnabled = false;
+
+// 返回下一次录屏是否采集音频，默认关闭。
+export function getAudioEnabled() {
+  return audioEnabled;
+}
+
+// 持久化音频开关，不影响正在录制的任务或已选设备。
+export function setAudioEnabled(value) {
+  audioEnabled = value === true;
+  saveSettings();
+}
+
+// 未设置音频来源时默认录制系统输出声音。
+export function getAudioSourceId() {
+  return audioSourceId;
+}
+
+// 保存下一次录屏使用的设备，不切换正在录制的音轨。
+export function setAudioSourceId(value) {
+  audioSourceId = typeof value === "string" && value.trim() ? value : "system";
+  saveSettings();
+}
 
 export function getStoredTheme() {
   return theme;
@@ -59,6 +83,8 @@ export function loadSettings() {
     closeAction = s.closeAction === "tray" || s.closeAction === "quit" ? s.closeAction : "";
     skippedUpdateVersion = typeof s.skippedUpdateVersion === "string" ? s.skippedUpdateVersion : "";
     theme = s.theme === "light" || s.theme === "dark" ? s.theme : "system";
+    audioSourceId = typeof s.audioSourceId === "string" && s.audioSourceId.trim() ? s.audioSourceId : "system";
+    audioEnabled = s.audioEnabled === true;
     setPinned(!!s.pinned);
     setAutomationScripts(normalizeAutomationScripts(s.automations));
   } catch {
@@ -84,6 +110,8 @@ export function saveSettings() {
     closeAction,
     skippedUpdateVersion,
     theme,
+    audioSourceId,
+    audioEnabled,
     pinned,
     automations: automationScripts,
   };

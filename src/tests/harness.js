@@ -23,6 +23,7 @@ const MODULES = [
     "app/permissions.js",
     "app/updater.js",
     "app/theme.js",
+    "app/audio-sources.js",
   "app/navigation.js",
     "app/scrollbars.js",
     "app/tray.js",
@@ -137,6 +138,13 @@ export function harness(isMac = true) {
       documentElement: { classList: { toggle() {} }, style: {}, setAttribute() {} },
       addEventListener() {},
       querySelectorAll: () => [],
+      createElement: () => ({
+        children: [],
+        listeners: new Map(),
+        append(...children) { this.children.push(...children); },
+        addEventListener(name, callback) { this.listeners.set(name, callback); },
+        setAttribute(name, value) { this[name] = value; },
+      }),
       querySelector: () => ({
         classList: { contains: () => false },
         focus() {},
@@ -154,8 +162,12 @@ export function harness(isMac = true) {
           hidden: true,
           style: {},
           listeners: new Map(),
+          children: [],
+          append(...children) { this.children.push(...children); },
+          replaceChildren(...children) { this.children = children; },
           classList: { toggle() {} },
           addEventListener(name, callback) { this.listeners.set(name, callback); },
+          setAttribute(name, value) { this[name] = value; },
           removeAttribute(name) { delete this[name]; },
           focus() {},
         });
@@ -166,6 +178,7 @@ export function harness(isMac = true) {
       if (["begin_automation_operation", "cancel_automation_operation", "end_automation_operation"].includes(command)) return;
       if (command === "is_recording") return true;
       if (command === "primary_size") return [1440, 900];
+      if (command === "list_audio_sources") return [{ id: "system", name: "系统声音", kind: "内置" }];
       if (command === "plugin:notification|notify") {
         assert.equal(notificationListeners.length, 1, "发送前必须绑定点击监听");
         const type = actionTypes.find((type) => type.id === args.options.actionTypeId);

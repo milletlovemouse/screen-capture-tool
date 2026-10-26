@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { $, setStatus } from "../core/dom.js";
 import { saveSettings } from "../core/settings.js";
 import { refreshPermissions } from "./permissions.js";
+import { refreshAudioSources } from "./audio-sources.js";
 import { stopRecording } from "./shortcuts.js";
 import { stopAutomationShortcutRecording } from "./automation/shortcuts.js";
 import { stopKeysRecording } from "./automation/steps.js";
@@ -26,7 +27,10 @@ export function setupNav() {
         section.classList.toggle("hidden", section.id !== `view-${view}`);
       });
       // 进入设置时刷新一次权限状态
-      if (view === "settings") refreshPermissions();
+      if (view === "settings") {
+        refreshPermissions();
+        void refreshAudioSources();
+      }
     });
   });
 }

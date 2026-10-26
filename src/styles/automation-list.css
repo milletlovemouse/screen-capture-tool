@@ -184,18 +184,9 @@
   align-items: stretch;
   gap: 14px;
   padding: 14px;
-  border-color: var(--border);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
-  transition: border-color 0.15s ease;
-}
-
-.automation-home-item:hover {
-  border-color: var(--border-hover);
-}
-
-.automation-home-item:has(.automation-run-toggle.recording) {
-  border-color: rgba(255, 77, 79, 0.4);
 }
 
 .home-shortcut {

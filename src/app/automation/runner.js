@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getAudioEnabled, getAudioSourceId } from "../../core/settings.js";
 import { sendNotification } from "@tauri-apps/plugin-notification";
 import { $, setStatus, sleep } from "../../core/dom.js";
 import { doCapture, notifySavedFile } from "../capture.js";
@@ -198,6 +199,8 @@ async function runStep(step, run) {
     if (run.cancelled) return;
     try {
       await invoke("start_recording", {
+        audioEnabled: getAudioEnabled(),
+        audioSourceId: getAudioSourceId(),
         x,
         y,
         width,

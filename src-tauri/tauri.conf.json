@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ScreenCaptureTool",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "identifier": "com.screencapture.tool",
   "build": {
     "frontendDist": "../dist",
@@ -33,6 +33,7 @@
     "createUpdaterArtifacts": false,
     "macOS": {
       "bundleName": "截图工具",
+      "minimumSystemVersion": "10.15",
       "infoPlist": "Info.plist"
     },
     "icon": [
