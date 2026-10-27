@@ -45,7 +45,7 @@ pub(crate) fn ticks_to_frames(ticks: i128) -> i64 {
 
 /// 校验交错 PCM 必须由完整的双声道采样帧组成。
 pub(crate) fn pcm_frames(bytes: &[u8]) -> Result<u64, String> {
-    if bytes.len() % ALIGN != 0 {
+    if !bytes.len().is_multiple_of(ALIGN) {
         return Err("PCM 缓冲未按双声道 16 位采样帧对齐".into());
     }
     Ok((bytes.len() / ALIGN) as u64)
