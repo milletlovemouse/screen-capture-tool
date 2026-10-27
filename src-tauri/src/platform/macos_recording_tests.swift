@@ -103,6 +103,11 @@ struct RecordingTests {
         }
         precondition((recorder.audio != nil) == audioEnabled)
         precondition(recorder.writer.inputs.filter { $0.mediaType == .audio }.count == (audioEnabled ? 1 : 0))
+        let videoSettings = recorder.video.outputSettings!
+        let colorProperties = videoSettings[AVVideoColorPropertiesKey] as! [String: Any]
+        precondition(colorProperties[AVVideoColorPrimariesKey] as? String == AVVideoColorPrimaries_ITU_R_709_2)
+        precondition(colorProperties[AVVideoTransferFunctionKey] as? String == AVVideoTransferFunction_ITU_R_709_2)
+        precondition(colorProperties[AVVideoYCbCrMatrixKey] as? String == AVVideoYCbCrMatrix_ITU_R_709_2)
         var pixel: CVPixelBuffer?
         precondition(CVPixelBufferCreate(kCFAllocatorDefault, 16, 16, kCVPixelFormatType_32BGRA,
             [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &pixel) == kCVReturnSuccess)
@@ -123,6 +128,15 @@ struct RecordingTests {
             recorder.append(sample!, isAudio: false)
             if let error = recorder.error { throw error }
             precondition(recorder.didSignalReady)
+            precondition(CVBufferGetAttachment(image, kCVImageBufferColorPrimariesKey, nil)
+                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferColorPrimaries_ITU_R_709_2) } == true)
+            precondition(CVBufferGetAttachment(image, kCVImageBufferTransferFunctionKey, nil)
+                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferTransferFunction_ITU_R_709_2) } == true)
+            let normalized = recorder.lastImage!
+            precondition(CVBufferGetAttachment(normalized, kCVImageBufferColorPrimariesKey, nil)
+                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferColorPrimaries_ITU_R_709_2) } == true)
+            precondition(CVBufferGetAttachment(normalized, kCVImageBufferTransferFunctionKey, nil)
+                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferTransferFunction_ITU_R_709_2) } == true)
             precondition((recorder.audioTimer != nil) == audioEnabled)
             if !audioEnabled {
                 let pcm = AVAudioPCMBuffer(pcmFormat: recorder.pcmFormat, frameCapacity: 960)!

@@ -1,3 +1,4 @@
+use super::windows_recording::encoder::VideoEncoder;
 use std::{
     sync::{mpsc, Arc, Mutex, OnceLock},
     thread::{self, JoinHandle},
@@ -24,7 +25,6 @@ use windows::{
         },
     },
 };
-use windows_capture::encoder::VideoEncoder;
 
 use crate::commands::audio::AudioSource;
 

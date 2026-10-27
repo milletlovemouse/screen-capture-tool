@@ -226,6 +226,14 @@
             </table>
           </div>
 
+          <div class="card" id="hardware-encoding-settings" hidden>
+            <label class="audio-recording-switch">
+              <span>硬件编码</span>
+              <input id="hardware-encoding" type="checkbox" role="switch" checked aria-describedby="hardware-encoding-hint" />
+            </label>
+            <p class="hint" id="hardware-encoding-hint">仅适用于 Windows，默认开启。虚拟机录屏偏色或遇到兼容性问题时，可关闭以使用软件编码，CPU 占用可能增加。更改从下次录屏生效，手动与自动化录屏共用此设置。</p>
+          </div>
+
           <div class="card">
             <div class="card-head">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6"/></svg>

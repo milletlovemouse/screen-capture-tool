@@ -77,6 +77,7 @@ pub fn start_recording(
     prefix: String,
     audio_source_id: Option<String>,
     audio_enabled: Option<bool>,
+    hardware_encoding: Option<bool>,
     state: tauri::State<RecState>,
     run_id: Option<String>,
     automation_state: tauri::State<AutomationState>,
@@ -85,6 +86,9 @@ pub fn start_recording(
     operation.check()?;
     let audio_source_id = audio_source_id.as_deref().unwrap_or("system");
     let audio_enabled = audio_enabled.unwrap_or(false);
+    // 编码策略仅供 Windows 使用；旧调用未传值时默认允许硬件加速。
+    #[cfg(target_os = "macos")]
+    let _ = hardware_encoding;
     let mut guard = state.0.lock().map_err(|_| "录制状态异常".to_string())?;
     clear_finished_recording(&mut guard);
     #[cfg(target_os = "macos")]
@@ -140,8 +144,13 @@ pub fn start_recording(
     {
         let path = unique_path(&dir_path, &base, "mp4");
         operation.check()?;
-        let recording =
-            windows_recording::Recording::start(&path, rect, audio_source_id, audio_enabled)?;
+        let recording = windows_recording::Recording::start(
+            &path,
+            rect,
+            audio_source_id,
+            audio_enabled,
+            hardware_encoding.unwrap_or(true),
+        )?;
         let path_str = path.to_string_lossy().into_owned();
         let process = RecordingProcess::Windows(recording, path_str.clone());
         if let Err(error) = operation.check() {

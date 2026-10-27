@@ -1,4 +1,5 @@
 import { $ } from "./dom.js";
+import { IS_MAC } from "../shared/platform.js";
 import {
   automationScripts,
   pinned,
@@ -13,6 +14,32 @@ let skippedUpdateVersion = "";
 let theme = "system";
 let audioSourceId = "system";
 let audioEnabled = false;
+let hardwareEncoding = true;
+
+// 返回下一次 Windows 录屏的硬件编码选择，默认开启。
+export function getHardwareEncoding() {
+  return hardwareEncoding;
+}
+
+// 保存编码策略，仅在下一次录屏创建编码器时生效。
+export function setHardwareEncoding(value) {
+  hardwareEncoding = value !== false;
+  saveSettings();
+}
+
+// macOS 不传递 Windows 专用的编码选项。
+export function getRecordingEncodingOptions() {
+  return IS_MAC ? {} : { hardwareEncoding: getHardwareEncoding() };
+}
+
+// 仅在 Windows 展示编码开关，并恢复已保存的选择。
+export function setupHardwareEncoding() {
+  $("hardware-encoding-settings").hidden = IS_MAC;
+  if (IS_MAC) return;
+  const toggle = $("hardware-encoding");
+  toggle.checked = getHardwareEncoding();
+  toggle.addEventListener("change", () => setHardwareEncoding(toggle.checked));
+}
 
 // 返回下一次录屏是否采集音频，默认关闭。
 export function getAudioEnabled() {
@@ -85,6 +112,7 @@ export function loadSettings() {
     theme = s.theme === "light" || s.theme === "dark" ? s.theme : "system";
     audioSourceId = typeof s.audioSourceId === "string" && s.audioSourceId.trim() ? s.audioSourceId : "system";
     audioEnabled = s.audioEnabled === true;
+    hardwareEncoding = s.hardwareEncoding !== false;
     setPinned(!!s.pinned);
     setAutomationScripts(normalizeAutomationScripts(s.automations));
   } catch {
@@ -112,6 +140,7 @@ export function saveSettings() {
     theme,
     audioSourceId,
     audioEnabled,
+    hardwareEncoding,
     pinned,
     automations: automationScripts,
   };

@@ -1,5 +1,9 @@
-use super::windows_audio::timeline::{BITS, CHANNELS, RATE};
 use super::windows_audio::{AudioCapture, Clock, SharedEncoder};
+#[path = "windows_recording_encoder.rs"]
+pub(super) mod encoder;
+#[path = "windows_recording_pixels.rs"]
+mod pixels;
+use encoder::VideoEncoder;
 use std::{
     path::Path,
     sync::{Arc, Mutex},
@@ -7,10 +11,6 @@ use std::{
 };
 use windows_capture::{
     capture::{CaptureControl, Context, GraphicsCaptureApiHandler},
-    encoder::{
-        AudioSettingsBuilder, ContainerSettingsBuilder, VideoEncoder, VideoSettingsBuilder,
-        VideoSettingsSubType,
-    },
     frame::Frame,
     graphics_capture_api::InternalCaptureControl,
     monitor::Monitor,
@@ -32,6 +32,7 @@ pub struct Config {
     path: String,
     audio_source: String,
     audio_enabled: bool,
+    hardware_encoding: bool,
 }
 
 pub struct Recorder {
@@ -51,15 +52,10 @@ impl GraphicsCaptureApiHandler for Recorder {
     fn new(ctx: Context<Config>) -> Result<Self, Self::Error> {
         let (_, _, w, h) = ctx.flags.rect;
         let encoder = VideoEncoder::new(
-            VideoSettingsBuilder::new(w, h)
-                .sub_type(VideoSettingsSubType::H264)
-                .frame_rate(30),
-            AudioSettingsBuilder::default()
-                .disabled(!ctx.flags.audio_enabled)
-                .sample_rate(RATE as u32)
-                .channel_count(CHANNELS as u32)
-                .bit_per_sample(BITS as u32),
-            ContainerSettingsBuilder::default(),
+            w,
+            h,
+            ctx.flags.audio_enabled,
+            ctx.flags.hardware_encoding,
             &ctx.flags.path,
         )?;
         let encoder = Arc::new(Mutex::new(Some(encoder)));
@@ -112,12 +108,7 @@ impl GraphicsCaptureApiHandler for Recorder {
         let mut buffer = frame.buffer_crop(x, y, x + w, y + h)?;
         let stride = buffer.row_pitch() as usize;
         let raw = buffer.as_raw_buffer();
-        let row_len = w as usize * 4;
-        for row in 0..h as usize {
-            let target = (h as usize - 1 - row) * row_len;
-            self.pixels[target..target + row_len]
-                .copy_from_slice(&raw[row * stride..row * stride + row_len]);
-        }
+        pixels::pack_bgra(raw, stride, w as usize, h as usize, &mut self.pixels)?;
         self.encoder
             .lock()
             .map_err(|_| "录屏编码器锁异常")?
@@ -170,6 +161,7 @@ impl Recording {
         rect: (u32, u32, u32, u32),
         audio_source: &str,
         audio_enabled: bool,
+        hardware_encoding: bool,
     ) -> Result<Self, String> {
         if audio_enabled && audio_source.is_empty() {
             return Err("请选择录屏音频源".into());
@@ -193,6 +185,7 @@ impl Recording {
                 path: path.to_string_lossy().into_owned(),
                 audio_source: audio_source.into(),
                 audio_enabled,
+                hardware_encoding,
             },
         );
         let control = Recorder::start_free_threaded(settings)

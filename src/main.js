@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { IS_MAC } from "./shared/platform";
 import { $, setStatus } from "./core/dom.js";
-import { loadSettings, saveSettings } from "./core/settings.js";
+import { loadSettings, saveSettings, setupHardwareEncoding } from "./core/settings.js";
 import { doCapture } from "./app/capture.js";
 import {
   hideIndicatorForRecording,
@@ -172,6 +172,7 @@ async function initializeMainWindow() {
   loadSettings();
   setupTheme();
   setupAudioSources();
+  setupHardwareEncoding();
   setAutomationMenuAction(toggleAutomation);
   if (!IS_MAC) {
     const screenInfo = document.querySelector('.permission-row[data-perm="screen"] .permission-desc');

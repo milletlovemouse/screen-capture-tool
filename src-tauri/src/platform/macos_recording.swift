@@ -120,7 +120,9 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
     let audio: AVAssetWriterInput?
     let outputWidth: Int
     let outputHeight: Int
-    let imageContext = CIContext()
+    /// 所有录屏像素先统一到 SDR sRGB，再交给 Rec.709 视频编码器。
+    let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+    let imageContext: CIContext
     let lifecycle = DispatchQueue(label: "screen-capture.session")
     let stopLock = NSLock()
     private var stopRequested = false
@@ -163,12 +165,21 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         writer = try AVAssetWriter(outputURL: URL(fileURLWithPath: path), fileType: .mov)
         video = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: width, AVVideoHeightKey: height
+            AVVideoWidthKey: width, AVVideoHeightKey: height,
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2
+            ]
         ])
         audio = audioEnabled ? AVAssetWriterInput(mediaType: .audio, outputSettings: [
             AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 48000,
             AVNumberOfChannelsKey: 2, AVEncoderBitRateKey: 192000
         ]) : nil
+        imageContext = CIContext(options: [
+            .workingColorSpace: sRGBColorSpace,
+            .outputColorSpace: sRGBColorSpace
+        ])
         super.init()
         video.expectsMediaDataInRealTime = true
         guard writer.canAdd(video) else { throw failure("无法创建 H.264 录屏编码器") }
@@ -229,20 +240,31 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
 
     /// 使用实际像素尺寸缩放到编码尺寸，覆盖 Retina 和奇数区域宽高。
     func normalizeImage(_ image: CVPixelBuffer) throws -> CVPixelBuffer {
-        if CVPixelBufferGetWidth(image) == outputWidth && CVPixelBufferGetHeight(image) == outputHeight {
-            return image
-        }
         var result: CVPixelBuffer?
         let status = CVPixelBufferCreate(kCFAllocatorDefault, outputWidth, outputHeight,
             kCVPixelFormatType_32BGRA,
             [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &result)
         guard status == kCVReturnSuccess, let result = result else { throw failure("创建录屏缩放缓冲失败") }
+        setSDRColorAttachments(on: image)
+        setSDRColorAttachments(on: result)
         let input = CIImage(cvPixelBuffer: image)
         let scaled = input.transformed(by: CGAffineTransform(
             scaleX: CGFloat(outputWidth) / input.extent.width,
             y: CGFloat(outputHeight) / input.extent.height))
-        imageContext.render(scaled, to: result)
+        imageContext.render(scaled, to: result, bounds: CGRect(x: 0, y: 0,
+            width: outputWidth, height: outputHeight), colorSpace: sRGBColorSpace)
+        setSDRColorAttachments(on: result)
         return result
+    }
+
+    /// 给 RGB 像素缓冲声明 SDR sRGB/Rec.709，避免编码器按未知色域解释像素。
+    private func setSDRColorAttachments(on buffer: CVPixelBuffer) {
+        CVBufferSetAttachment(buffer, kCVImageBufferColorPrimariesKey,
+            kCVImageBufferColorPrimaries_ITU_R_709_2, .shouldPropagate)
+        CVBufferSetAttachment(buffer, kCVImageBufferTransferFunctionKey,
+            kCVImageBufferTransferFunction_ITU_R_709_2, .shouldPropagate)
+        CVBufferSetAttachment(buffer, kCVImageBufferYCbCrMatrixKey,
+            kCVImageBufferYCbCrMatrix_ITU_R_709_2, .shouldPropagate)
     }
 
     /// 写入具有明确持续时间的画面；最后一帧可一直保持到停止时刻。

@@ -2,6 +2,57 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { harness } from "./harness.js";
 
+test("Windows 硬件编码默认开启，旧设置缺失字段及异常值仍默认开启", () => {
+  const h = harness(false);
+  assert.equal(h.evaluate("getHardwareEncoding()"), true);
+  for (const value of [undefined, null, 0, "false", true, false]) {
+    h.storage.set("sct-settings", JSON.stringify({ hardwareEncoding: value }));
+    h.evaluate("loadSettings(); setupHardwareEncoding()");
+    assert.equal(h.evaluate("getHardwareEncoding()"), value !== false);
+    assert.equal(h.elements.get("hardware-encoding").checked, value !== false);
+    assert.equal(h.elements.get("hardware-encoding-settings").hidden, false);
+  }
+});
+
+test("Windows 硬件编码通过开关持久化，重启恢复后可重新开启", () => {
+  const h = harness(false);
+  h.evaluate("loadSettings(); setupHardwareEncoding()");
+  for (const enabled of [false, true, false]) {
+    const toggle = h.elements.get("hardware-encoding");
+    toggle.checked = enabled;
+    toggle.listeners.get("change")();
+    const saved = h.storage.get("sct-settings");
+    assert.equal(JSON.parse(saved).hardwareEncoding, enabled);
+    const restarted = harness(false);
+    restarted.storage.set("sct-settings", saved);
+    restarted.evaluate("loadSettings(); setupHardwareEncoding()");
+    assert.equal(restarted.elements.get("hardware-encoding").checked, enabled);
+    assert.equal(restarted.evaluate("getHardwareEncoding()"), enabled);
+  }
+});
+
+for (const isMac of [false, true]) {
+  for (const entry of ["manual", "automation"]) {
+    test(`${isMac ? "macOS" : "Windows"} ${entry} 录屏按平台传递硬件编码策略`, async () => {
+      const h = harness(isMac);
+      h.evaluate("loadSettings(); setupHardwareEncoding()");
+      assert.equal(h.elements.get("hardware-encoding-settings").hidden, isMac);
+      for (const enabled of [undefined, false, true]) {
+        if (enabled !== undefined) h.evaluate(`setHardwareEncoding(${enabled})`);
+        if (entry === "manual") {
+          await h.evaluate("toggleRecording()");
+          await h.evaluate("toggleRecording()");
+        } else {
+          await h.run({ steps: [{ type: "record", duration: 0 }], runMode: "once" });
+        }
+        const args = h.calls.filter((call) => call.command === "start_recording").at(-1).args;
+        assert.equal(Object.hasOwn(args, "hardwareEncoding"), !isMac);
+        if (!isMac) assert.equal(args.hardwareEncoding, enabled ?? true);
+      }
+    });
+  }
+}
+
 test("新设置及旧设置默认关闭音频，并持久化选择的真实设备 ID", () => {
   const h = harness();
   assert.equal(h.evaluate("getAudioEnabled()"), false);

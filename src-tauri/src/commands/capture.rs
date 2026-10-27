@@ -52,14 +52,31 @@ fn save_capture(
     } else {
         sanitize_file_stem(prefix)
     };
-    let mut png = Cursor::new(Vec::new());
-    image
-        .write_to(&mut png, image::ImageFormat::Png)
-        .map_err(|e| format!("PNG 编码失败: {e}"))?;
+    let png = encode_srgb_png(image)?;
     operation.with_active(|| {
         std::fs::create_dir_all(dir).map_err(|e| format!("创建目录失败: {e}"))?;
-        write_unique_file(dir, &base, "png", png.get_ref()).map_err(|e| format!("保存失败: {e}"))
+        write_unique_file(dir, &base, "png", &png).map_err(|e| format!("保存失败: {e}"))
     })
+}
+
+/// 保留截图原始 RGBA 像素，并在 PNG 中声明 SDR sRGB 显示意图。
+fn encode_srgb_png(image: &image::RgbaImage) -> Result<Vec<u8>, String> {
+    let mut output = Cursor::new(Vec::new());
+    let mut encoder = png::Encoder::new(&mut output, image.width(), image.height());
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    {
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| format!("PNG 头编码失败: {e}"))?;
+        writer
+            .write_chunk(png::chunk::ChunkType(*b"sRGB"), &[0])
+            .map_err(|e| format!("PNG sRGB 标记编码失败: {e}"))?;
+        writer
+            .write_image_data(image.as_raw())
+            .map_err(|e| format!("PNG 像素编码失败: {e}"))?;
+    }
+    Ok(output.into_inner())
 }
 
 /// 截取指针周围的一小块区域并返回原始 RGBA，供放大镜实时取样。
@@ -195,5 +212,16 @@ mod tests {
         assert!(dir.0.join("shot.png").is_dir());
         let error = write_unique_file(&dir.0.join("missing"), "shot", "png", b"bytes").unwrap_err();
         assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    /// sRGB chunk 只声明 PNG 色彩意图，编码前后的 RGBA 像素必须完全一致。
+    #[test]
+    fn png_declares_srgb_without_changing_pixels() {
+        let image =
+            image::RgbaImage::from_raw(2, 1, vec![0x01, 0x23, 0x45, 0xff, 0xab, 0xcd, 0xef, 0x80])
+                .unwrap();
+        let encoded = encode_srgb_png(&image).unwrap();
+        assert!(encoded.windows(4).any(|chunk| chunk == b"sRGB"));
+        assert_eq!(image::load_from_memory(&encoded).unwrap().to_rgba8(), image);
     }
 }

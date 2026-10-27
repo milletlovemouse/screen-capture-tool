@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getAudioEnabled, getAudioSourceId } from "../core/settings.js";
+import { getAudioEnabled, getAudioSourceId, getRecordingEncodingOptions } from "../core/settings.js";
 import { $, setStatus } from "../core/dom.js";
 import { notifySavedFile } from "./capture.js";
 import { regionPayload } from "./region.js";
@@ -121,6 +121,7 @@ export async function toggleRecording() {
           x, y, width, height, dir, prefix,
           audioEnabled: getAudioEnabled(),
           audioSourceId: getAudioSourceId(),
+          ...getRecordingEncodingOptions(),
         });
       } catch (e) {
         await restoreIndicatorAfterRecording();
