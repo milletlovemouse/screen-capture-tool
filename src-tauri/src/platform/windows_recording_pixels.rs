@@ -20,7 +20,7 @@ pub(super) fn pack_bgra(
         let target = (height - 1 - row) * row_len;
         let dest = &mut output[target..target + row_len];
         dest.copy_from_slice(&raw[row * stride..row * stride + row_len]);
-        for pixel in dest.chunks_exact_mut(4) {
+        for pixel in dest.as_chunks_mut::<4>().0 {
             pixel[3] = 255;
         }
     }
