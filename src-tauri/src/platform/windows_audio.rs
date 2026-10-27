@@ -28,9 +28,11 @@ use windows_capture::encoder::VideoEncoder;
 
 use crate::commands::audio::AudioSource;
 
+#[path = "windows_audio_timeline.rs"]
+pub(super) mod timeline;
+use timeline::{packet_range, pcm_frames, Timeline, ALIGN, BITS, CHANNELS, RATE};
+
 pub(super) type SharedEncoder = Arc<Mutex<Option<VideoEncoder>>>;
-const RATE: u64 = 48_000;
-const ALIGN: usize = 4;
 
 struct ComApartment;
 
@@ -208,6 +210,7 @@ struct PcmWriter {
 impl PcmWriter {
     /// 按累计样本发送交错的 48kHz、双声道、16 位 PCM。
     fn send(&mut self, bytes: &[u8]) -> Result<(), String> {
+        let frames = pcm_frames(bytes)?;
         if bytes.is_empty() {
             return Ok(());
         }
@@ -218,7 +221,7 @@ impl PcmWriter {
             .ok_or("音频编码器已停止")?
             .send_audio_buffer(bytes, (self.frames * 10_000_000 / RATE) as i64)
             .map_err(|e| format!("写入录屏音频失败：{e}"))?;
-        self.frames += (bytes.len() / ALIGN) as u64;
+        self.frames += frames;
         Ok(())
     }
 
@@ -263,11 +266,11 @@ fn capture(
             .map_err(|e| format!("激活音频设备失败：{e}"))?;
         let format = WAVEFORMATEX {
             wFormatTag: 1,
-            nChannels: 2,
+            nChannels: CHANNELS,
             nSamplesPerSec: RATE as u32,
             nAvgBytesPerSec: RATE as u32 * ALIGN as u32,
             nBlockAlign: ALIGN as u16,
-            wBitsPerSample: 16,
+            wBitsPerSample: BITS,
             cbSize: 0,
         };
         let flags = AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
@@ -286,6 +289,7 @@ fn capture(
             .map_err(|e| format!("启动音频采集失败：{e}"))?;
         let _ = ready.send(Ok(()));
         let mut writer = PcmWriter { encoder, frames: 0 };
+        let mut timeline = Timeline::default();
         let result = (|| -> Result<(), String> {
             loop {
                 let stopping = match stopped.recv_timeout(Duration::from_millis(5)) {
@@ -302,10 +306,16 @@ fn capture(
                     .map_err(|e| format!("读取音频包失败：{e}"))?
                     > 0
                 {
-                    let (mut data, mut frames, mut flags, mut qpc) =
-                        (std::ptr::null_mut(), 0, 0, 0);
+                    let (mut data, mut frames, mut flags, mut position, mut qpc) =
+                        (std::ptr::null_mut(), 0, 0u32, 0u64, 0u64);
                     capture
-                        .GetBuffer(&mut data, &mut frames, &mut flags, None, Some(&mut qpc))
+                        .GetBuffer(
+                            &mut data,
+                            &mut frames,
+                            &mut flags,
+                            Some(&mut position),
+                            Some(&mut qpc),
+                        )
                         .map_err(|e| format!("获取音频 PCM 失败：{e}"))?;
                     // 握手不等视频；首帧前持续释放设备包，既不编码也不补静音。
                     let Some(origin) = clock.origin.get().copied() else {
@@ -322,20 +332,17 @@ fn capture(
                         std::slice::from_raw_parts(data, frames as usize * ALIGN).to_vec()
                     };
                     capture.ReleaseBuffer(frames).map_err(|e| e.to_string())?;
-                    let end = (clock.now()? - origin).max(0) as u64 * RATE / 10_000_000;
-                    let start = if flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR.0 as u32 != 0 {
-                        end as i64 - frames as i64
-                    } else {
-                        ((qpc as i128 - origin as i128) * RATE as i128 / 10_000_000) as i64
-                    };
-                    let first = start.max(0) as u64;
-                    writer.silence_until(first.min(end))?;
-                    let skip = (writer.frames as i128 - start as i128)
-                        .max(0)
-                        .min(frames as i128) as usize;
-                    let count =
-                        (frames as usize - skip).min(end.saturating_sub(writer.frames) as usize);
-                    writer.send(&bytes[skip * ALIGN..(skip + count) * ALIGN])?;
+                    let start = timeline.packet_start(
+                        position,
+                        (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR.0 as u32 == 0).then_some(qpc),
+                        origin,
+                        clock.now()?,
+                        frames,
+                    );
+                    let (target, range) =
+                        packet_range(start, writer.frames, frames, stopping.then_some(end));
+                    writer.silence_until(target)?;
+                    writer.send(&bytes[range])?;
                 }
                 // 给正常到达的设备包保留 100ms；无输出的 loopback 仍持续产生静音。
                 if origin.is_some() {

@@ -1,3 +1,4 @@
+use super::windows_audio::timeline::{BITS, CHANNELS, RATE};
 use super::windows_audio::{AudioCapture, Clock, SharedEncoder};
 use std::{
     path::Path,
@@ -55,9 +56,9 @@ impl GraphicsCaptureApiHandler for Recorder {
                 .frame_rate(30),
             AudioSettingsBuilder::default()
                 .disabled(!ctx.flags.audio_enabled)
-                .sample_rate(48_000)
-                .channel_count(2)
-                .bit_per_sample(16),
+                .sample_rate(RATE as u32)
+                .channel_count(CHANNELS as u32)
+                .bit_per_sample(BITS as u32),
             ContainerSettingsBuilder::default(),
             &ctx.flags.path,
         )?;

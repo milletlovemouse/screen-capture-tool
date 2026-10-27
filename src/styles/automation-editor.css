@@ -12,6 +12,29 @@
   background: var(--card);
 }
 
+/* 编辑器内部独立分层，不改变公共面板或其他页面的主题变量。 */
+.automation-editor .automation-editor-head,
+.automation-editor .automation-editor-actions {
+  background: var(--elevated-bg);
+}
+
+.automation-editor .automation-flow-section {
+  background: color-mix(in srgb, var(--card) 85%, var(--border));
+}
+
+.automation-editor .automation-step {
+  background: var(--elevated-bg);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.automation-editor .automation-step.dragging {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+.automation-editor .automation-steps-empty {
+  background: var(--elevated-bg);
+}
+
 .automation-editor.hidden {
   display: none;
 }

@@ -654,8 +654,13 @@ public func recordStart(_ path: UnsafePointer<CChar>, _ source: UnsafePointer<CC
         }
         let rect = CGRect(x: Int(x), y: Int(y), width: Int(width), height: Int(height))
         let displayID = CGMainDisplayID()
+        guard let mode = CGDisplayCopyDisplayMode(displayID),
+              mode.pixelWidth > 0, mode.pixelHeight > 0 else {
+            throw failure("无法读取主屏实际像素尺寸")
+        }
+        // Retina 下 CGDisplayPixelsWide/High 可能返回逻辑尺寸，使用当前模式的像素尺寸。
         let native = nativeRecordingSize(rect, bounds: CGDisplayBounds(displayID),
-            pixelWidth: CGDisplayPixelsWide(displayID), pixelHeight: CGDisplayPixelsHigh(displayID))
+            pixelWidth: mode.pixelWidth, pixelHeight: mode.pixelHeight)
         let instance = try Recorder(path: destination, width: native.0, height: native.1,
                                     audioEnabled: audioEnabled)
         recorder = instance

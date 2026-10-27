@@ -158,8 +158,22 @@ struct RecordingTests {
         precondition(!FileManager.default.fileExists(atPath: url.path))
     }
 
-    /// 执行 PCM、真实音轨、取消及错误诊断回归。
+    /// 验证 Retina 全屏、局部区域和普通屏幕的输出像素尺寸。
+    static func testRecordingSize() {
+        let bounds = CGRect(x: 0, y: 0, width: 1800, height: 1169)
+        let full = nativeRecordingSize(bounds, bounds: bounds, pixelWidth: 3600, pixelHeight: 2338)
+        precondition(full.0 == 3600 && full.1 == 2338)
+        let region = nativeRecordingSize(CGRect(x: 100, y: 50, width: 801, height: 501),
+            bounds: bounds, pixelWidth: 3600, pixelHeight: 2338)
+        precondition(region.0 == 1602 && region.1 == 1002)
+        let standard = nativeRecordingSize(bounds, bounds: bounds, pixelWidth: 1800, pixelHeight: 1169)
+        precondition(standard.0 == 1800 && standard.1 == 1168)
+    }
+
+    /// 执行分辨率、PCM、真实音轨、取消及错误诊断回归。
     static func main() throws {
+        testRecordingSize()
+        print("PASS Retina full-screen, region and standard recording sizes")
         for rate in [44100.0, 48000.0] {
             for silent in [false, true] {
                 try testPCM(rate: rate, silent: silent)
