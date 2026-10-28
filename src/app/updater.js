@@ -10,16 +10,35 @@ let availableUpdate = null;
 let currentVersion = "";
 let updateChecking = false;
 let updateInstalling = false;
+let updateDownload = null;
+let updateReady = false;
 
+// 下载期间保留取消入口，只有安装阶段禁用关闭。
 function setUpdateButtonsDisabled(disabled) {
-  for (const id of ["update-cancel", "update-skip", "update-confirm"]) {
+  for (const id of ["update-skip", "update-confirm"]) {
     const button = $(id);
     if (button) button.disabled = disabled;
   }
+  const cancel = $("update-cancel");
+  if (cancel) cancel.disabled = updateInstalling;
+  const background = $("update-background");
+  if (background) background.hidden = !updateDownload || updateDownload.cancelled || updateInstalling;
 }
 
+// 收起窗口继续下载，后台下载完成后等待用户主动安装。
+function backgroundUpdateDownload() {
+  if (!updateDownload || updateDownload.cancelled || updateInstalling) return;
+  updateDownload.background = true;
+  $("update-prompt").hidden = true;
+}
+
+// 关闭下载窗口时撤销安装意图，迟到的下载结果不得触发安装。
 function hideUpdatePrompt() {
   if (updateInstalling) return;
+  if (updateDownload) {
+    updateDownload.cancelled = true;
+    setUpdateStatus("");
+  }
   $("update-prompt").hidden = true;
 }
 
@@ -27,9 +46,9 @@ function showUpdatePrompt(update) {
   $("update-current-version").textContent = `v${currentVersion}`;
   $("update-latest-version").textContent = `v${update.version}`;
   $("update-release-notes").textContent = update.body?.trim() || "此版本暂无更新说明。";
-  $("update-progress").hidden = true;
-  $("update-progress-bar").style.width = "0%";
-  setUpdateButtonsDisabled(false);
+  $("update-progress").hidden = !updateDownload && !updateReady;
+  if (!updateDownload && !updateReady) $("update-progress-bar").style.width = "0%";
+  setUpdateButtonsDisabled(Boolean(updateDownload) || updateInstalling);
   $("update-prompt").hidden = false;
   document.querySelector(".update-prompt-panel").focus();
 }
@@ -53,8 +72,9 @@ export async function setupAbout() {
   });
   $("install-update")?.addEventListener("click", installAvailableUpdate);
   $("update-cancel")?.addEventListener("click", hideUpdatePrompt);
+  $("update-background")?.addEventListener("click", backgroundUpdateDownload);
   $("update-skip")?.addEventListener("click", () => {
-    if (!availableUpdate || updateInstalling) return;
+    if (!availableUpdate || updateInstalling || updateDownload) return;
     setSkippedUpdateVersion(availableUpdate.version);
     hideUpdatePrompt();
   });
@@ -94,6 +114,10 @@ async function checkForUpdates(automatic = false) {
   const checkButton = $("check-update");
   const installButton = $("install-update");
   if (!checkButton || updateChecking || updateInstalling) return;
+  if (updateDownload || updateReady) {
+    if (!automatic && !updateDownload?.cancelled) showUpdatePrompt(availableUpdate);
+    return;
+  }
   updateChecking = true;
   checkButton.disabled = true;
   if (!automatic) setUpdateStatus("正在检查更新…");
@@ -123,22 +147,32 @@ export function checkForUpdatesFromMenu() {
   return checkForUpdates(false);
 }
 
-// 下载并安装更新，完成后重启应用。
+// 分开下载与安装，允许下载期间关闭，取消后丢弃结果。
 async function installAvailableUpdate() {
-  if (!availableUpdate) return;
+  if (!availableUpdate || updateInstalling) return;
+  if (updateDownload) {
+    if (!updateDownload.cancelled) showUpdatePrompt(availableUpdate);
+    return;
+  }
+  const update = availableUpdate;
+  const download = { cancelled: false, background: false };
+  updateDownload = download;
   const installButton = $("install-update");
   const confirmButton = $("update-confirm");
   const progress = $("update-progress");
   const progressBar = $("update-progress-bar");
-  updateInstalling = true;
-  if (installButton) installButton.disabled = true;
+  if (installButton) {
+    installButton.disabled = false;
+    installButton.textContent = "查看下载进度";
+  }
   if (confirmButton) confirmButton.textContent = "正在更新…";
   setUpdateButtonsDisabled(true);
   if (progress) progress.hidden = false;
   let total = 0;
   let downloaded = 0;
   try {
-    await availableUpdate.downloadAndInstall((event) => {
+    if (!updateReady) await update.download((event) => {
+      if (download.cancelled) return;
       if (event.event === "Started") {
         total = event.data?.contentLength || 0;
         downloaded = 0;
@@ -151,16 +185,43 @@ async function installAvailableUpdate() {
         if (progressBar && percent !== null) progressBar.style.width = `${percent}%`;
       }
       if (event.event === "Finished") {
-        setUpdateStatus("更新下载完成，正在重启…");
         if (progressBar) progressBar.style.width = "100%";
       }
-    });
+    }, { timeout: 120_000 });
+    if (download.cancelled) return;
+    updateReady = true;
+    if (download.background) {
+      setUpdateStatus("");
+      return;
+    }
+    updateInstalling = true;
+    if (installButton) installButton.disabled = true;
+    setUpdateButtonsDisabled(true);
+    setUpdateStatus("正在安装更新…");
+    await update.install();
+    updateReady = false;
     await relaunch();
   } catch (error) {
-    setUpdateStatus("安装更新失败，请稍后重试", String(error));
+    if (!download.cancelled) setUpdateStatus("", String(error));
+  } finally {
+    // 插件不支持中断在途请求；完成或超时后释放已取消下载的资源。
+    if (download.cancelled) {
+      try {
+        await update.close();
+      } catch {
+        // 资源可能已由原生端释放。
+      }
+      availableUpdate = null;
+      updateReady = false;
+      if (installButton) installButton.hidden = true;
+    }
+    updateDownload = null;
     updateInstalling = false;
-    if (installButton) installButton.disabled = false;
-    if (confirmButton) confirmButton.textContent = "更新";
+    if (installButton) {
+      installButton.disabled = false;
+      installButton.textContent = updateReady ? "安装并重启" : "下载更新";
+    }
+    if (confirmButton) confirmButton.textContent = updateReady ? "安装并重启" : "更新";
     setUpdateButtonsDisabled(false);
   }
 }

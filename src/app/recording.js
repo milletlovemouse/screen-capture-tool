@@ -35,6 +35,13 @@ export function startRecordingMonitor() {
           }
           setRecordingActive(false);
           try {
+            // 原生异常退出仍需收尾，取回原始错误并清理失败输出。
+            try {
+              await invoke("stop_recording");
+            } catch (error) {
+              const button = $("record-toggle");
+              if (button) button.title = String(error);
+            }
             await restoreIndicatorAfterRecording();
           } finally {
             setRecordingBusy(false);

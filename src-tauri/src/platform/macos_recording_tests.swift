@@ -1,9 +1,18 @@
 import Foundation
 import AVFoundation
+import CoreImage
 
 /// 运行真实转换器的合成 PCM 回归，不依赖麦克风或屏幕权限。
 @main
 struct RecordingTests {
+    /// 读取首像素以比较实际渲染结果。
+    static func firstPixel(_ image: CVPixelBuffer) -> [UInt8] {
+        CVPixelBufferLockBaseAddress(image, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(image, .readOnly) }
+        let bytes = CVPixelBufferGetBaseAddress(image)!.assumingMemoryBound(to: UInt8.self)
+        return Array(UnsafeBufferPointer(start: bytes, count: 4))
+    }
+
     /// 验证单声道转换、全零 PCM 就绪及视频前音频丢弃。
     static func testPCM(rate: Double, silent: Bool) throws {
         let url = FileManager.default.temporaryDirectory
@@ -113,8 +122,32 @@ struct RecordingTests {
             [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &pixel) == kCVReturnSuccess)
         let image = pixel!
         CVPixelBufferLockBaseAddress(image, [])
-        memset(CVPixelBufferGetBaseAddress(image)!, 0, CVPixelBufferGetDataSize(image))
+        let bytes = CVPixelBufferGetBaseAddress(image)!.assumingMemoryBound(to: UInt8.self)
+        for row in 0..<16 {
+            for col in 0..<16 {
+                let offset = row * CVPixelBufferGetBytesPerRow(image) + col * 4
+                bytes[offset] = 64
+                bytes[offset + 1] = 128
+                bytes[offset + 2] = 192
+                bytes[offset + 3] = 255
+            }
+        }
         CVPixelBufferUnlockBaseAddress(image, [])
+        CVBufferSetAttachment(image, kCVImageBufferColorPrimariesKey,
+            kCVImageBufferColorPrimaries_P3_D65, .shouldPropagate)
+        CVBufferSetAttachment(image, kCVImageBufferTransferFunctionKey,
+            kCVImageBufferTransferFunction_sRGB, .shouldPropagate)
+        CVBufferSetAttachment(image, kCVImageBufferCGColorSpaceKey,
+            CGColorSpace(name: CGColorSpace.displayP3)!, .shouldPropagate)
+        let sourceAttachments = CFDictionaryCreateCopy(kCFAllocatorDefault,
+            CVBufferGetAttachments(image, .shouldPropagate)!)!
+        var reference: CVPixelBuffer?
+        precondition(CVPixelBufferCreate(kCFAllocatorDefault, 16, 16, kCVPixelFormatType_32BGRA,
+            [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &reference) == kCVReturnSuccess)
+        let referenceContext = CIContext()
+        referenceContext.render(CIImage(cvPixelBuffer: image), to: reference!,
+            bounds: CGRect(x: 0, y: 0, width: 16, height: 16),
+            colorSpace: CGColorSpace(name: CGColorSpace.itur_709)!)
         var format: CMVideoFormatDescription?
         precondition(CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault,
             imageBuffer: image, formatDescriptionOut: &format) == noErr)
@@ -128,11 +161,16 @@ struct RecordingTests {
             recorder.append(sample!, isAudio: false)
             if let error = recorder.error { throw error }
             precondition(recorder.didSignalReady)
+            precondition(CFEqual(sourceAttachments, CVBufferGetAttachments(image, .shouldPropagate)!))
             precondition(CVBufferGetAttachment(image, kCVImageBufferColorPrimariesKey, nil)
-                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferColorPrimaries_ITU_R_709_2) } == true)
+                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferColorPrimaries_P3_D65) } == true)
             precondition(CVBufferGetAttachment(image, kCVImageBufferTransferFunctionKey, nil)
-                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferTransferFunction_ITU_R_709_2) } == true)
+                .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferTransferFunction_sRGB) } == true)
             let normalized = recorder.lastImage!
+            for (actual, expected) in zip(firstPixel(normalized), firstPixel(reference!)) {
+                precondition(abs(Int(actual) - Int(expected)) <= 1)
+            }
+            precondition(firstPixel(normalized) != firstPixel(image))
             precondition(CVBufferGetAttachment(normalized, kCVImageBufferColorPrimariesKey, nil)
                 .map { CFEqual($0.takeUnretainedValue(), kCVImageBufferColorPrimaries_ITU_R_709_2) } == true)
             precondition(CVBufferGetAttachment(normalized, kCVImageBufferTransferFunctionKey, nil)
@@ -147,6 +185,25 @@ struct RecordingTests {
                 precondition(!recorder.receivedAudio && recorder.pendingAudio.isEmpty)
                 precondition(recorder.audioFrames == 0 && recorder.audioFormat == nil)
             }
+            // 每帧重新构造格式描述仍应保持格式等价，并成功写入连续画面。
+            var firstFormat: CMVideoFormatDescription?
+            precondition(CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault,
+                imageBuffer: normalized, formatDescriptionOut: &firstFormat) == noErr)
+            for frame in 1...5 {
+                timing.presentationTimeStamp = CMTime(value: Int64(frame), timescale: 30)
+                precondition(CMSampleBufferCreateReadyWithImageBuffer(allocator: kCFAllocatorDefault,
+                    imageBuffer: image, formatDescription: format!, sampleTiming: &timing,
+                    sampleBufferOut: &sample) == noErr)
+                try recorder.waitUntilReady(recorder.video, deadline: Date().addingTimeInterval(5))
+                recorder.append(sample!, isAudio: false)
+                if let error = recorder.error { throw error }
+                var nextFormat: CMVideoFormatDescription?
+                precondition(CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault,
+                    imageBuffer: recorder.lastImage!, formatDescriptionOut: &nextFormat) == noErr)
+                precondition(CMFormatDescriptionEqual(firstFormat!, otherFormatDescription: nextFormat!))
+            }
+            precondition(recorder.videoCount == 6)
+            precondition(CFEqual(sourceAttachments, CVBufferGetAttachments(image, .shouldPropagate)!))
         }
         let stopTime = CMTimeAdd(recorder.startHostTime, CMTime(value: 1, timescale: 2))
         try recorder.queue.sync { try recorder.finalize(at: stopTime, stopError: nil) }
@@ -155,6 +212,58 @@ struct RecordingTests {
         precondition(asset.tracks(withMediaType: .video).count == 1)
         precondition(asset.tracks(withMediaType: .audio).count == (audioEnabled ? 1 : 0))
         precondition(CMTimeGetSeconds(asset.duration) >= 0.49)
+        let track = asset.tracks(withMediaType: .video)[0]
+        let encodedFormat = track.formatDescriptions[0] as! CMFormatDescription
+        for key in [kCMFormatDescriptionExtension_ColorPrimaries,
+                    kCMFormatDescriptionExtension_TransferFunction,
+                    kCMFormatDescriptionExtension_YCbCrMatrix] {
+            precondition(CMFormatDescriptionGetExtension(encodedFormat, extensionKey: key)
+                .map { CFEqual($0, kCVImageBufferColorPrimaries_ITU_R_709_2) } == true)
+        }
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+        ])
+        reader.add(output)
+        precondition(reader.startReading())
+        var decodedFrames = 0
+        while let decoded = output.copyNextSampleBuffer() {
+            precondition(CMSampleBufferGetImageBuffer(decoded) != nil)
+            decodedFrames += 1
+        }
+        if let error = reader.error { throw error }
+        precondition(reader.status == .completed && decodedFrames >= 6)
+    }
+
+    /// 无真实采集地验证终止状态可被轮询发现，保留首错并清理输出。
+    static func testTerminalCleanup(sessionStopped: Bool, firstError: Bool) throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sct-terminal-\(UUID().uuidString).mov")
+        let recorder = try Recorder(path: url.path, width: 16, height: 16)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let original = NSError(domain: "SyntheticFirst", code: 73)
+        recorder.queue.sync {
+            if firstError { recorder.fail(original) }
+            if sessionStopped {
+                recorder.session = AVCaptureSession()
+                recorder.didSignalReady = true
+            } else {
+                recorder.writer.cancelWriting()
+            }
+        }
+        let handle = Unmanaged.passUnretained(recorder).toOpaque()
+        precondition(recordFinished(handle))
+        let detected = recorder.queue.sync { recorder.error! as NSError }
+        if firstError { precondition(detected.domain == original.domain && detected.code == original.code) }
+        do {
+            try recorder.stop(aborting: NSError(domain: "SyntheticLaterStop", code: 99))
+            preconditionFailure("终止状态必须返回错误")
+        } catch {
+            let returned = error as NSError
+            precondition(returned.domain == detected.domain && returned.code == detected.code)
+        }
+        precondition(!FileManager.default.fileExists(atPath: url.path))
+        precondition(recorder.audioTimer == nil && recorder.observers.isEmpty)
     }
 
     /// 验证纯视频启动取消能够清理文件，且无需音频对象。
@@ -204,5 +313,11 @@ struct RecordingTests {
         print("PASS enabled system silence retains AAC track")
         try testVideoOnlyAbort()
         print("PASS video-only startup cancellation cleanup")
+        for sessionStopped in [false, true] {
+            for firstError in [false, true] {
+                try testTerminalCleanup(sessionStopped: sessionStopped, firstError: firstError)
+                print("PASS terminal cleanup and first error, sessionStopped=\(sessionStopped), firstError=\(firstError)")
+            }
+        }
     }
 }

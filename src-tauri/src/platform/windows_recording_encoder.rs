@@ -1,14 +1,18 @@
 //! 可选择硬件加速的 NV12 → H.264 路径，颜色转换由程序统一完成。
 use super::super::windows_audio::timeline::{ALIGN, BITS, CHANNELS, RATE};
-use std::sync::{mpsc, Arc, Mutex};
+use super::output::{RecordingOutput, VIDEO_DURATION};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc, Mutex,
+};
 use windows::{
-    core::{Error, Interface, Result, HSTRING},
+    core::{AgileReference, Error, Interface, Result, HSTRING},
     Foundation::{PropertyValue, TimeSpan, TypedEventHandler},
     Media::{
         Core::{
             AudioStreamDescriptor, MediaStreamSample, MediaStreamSource,
-            MediaStreamSourceSampleRequestedEventArgs, MediaStreamSourceStartingEventArgs,
-            VideoStreamDescriptor,
+            MediaStreamSourceErrorStatus, MediaStreamSourceSampleRequestedEventArgs,
+            MediaStreamSourceStartingEventArgs, VideoStreamDescriptor,
         },
         MediaProperties::{
             AudioEncodingProperties, ContainerEncodingProperties, MediaEncodingProfile,
@@ -17,7 +21,7 @@ use windows::{
         Transcoding::MediaTranscoder,
     },
     Security::Cryptography::CryptographicBuffer,
-    Storage::{FileAccessMode, StorageFile},
+    Storage::{FileAccessMode, StorageFile, Streams::IRandomAccessStream},
     System::Threading::{ThreadPool, WorkItemHandler, WorkItemOptions, WorkItemPriority},
     Win32::Media::MediaFoundation::{
         MFNominalRange_16_235, MFVideoPrimaries_BT709, MFVideoTransFunc_sRGB,
@@ -28,6 +32,17 @@ use windows::{
 
 type Sample = Option<(Vec<u8>, i64)>;
 
+struct InitializingStream(Option<IRandomAccessStream>);
+
+impl Drop for InitializingStream {
+    /// 构造中途失败时显式关闭输出，不能仅依赖 COM 引用释放。
+    fn drop(&mut self) {
+        if let Some(stream) = self.0.take() {
+            let _ = stream.Close();
+        }
+    }
+}
+
 pub(in super::super) struct VideoEncoder {
     source: MediaStreamSource,
     starting: i64,
@@ -35,9 +50,14 @@ pub(in super::super) struct VideoEncoder {
     video: Option<mpsc::Sender<Sample>>,
     audio: Option<mpsc::Sender<Sample>>,
     transcode: Option<std::thread::JoinHandle<Result<()>>>,
+    cancel: Option<Box<dyn FnOnce() + Send>>,
+    processed: Arc<AtomicBool>,
+    failure: Arc<Mutex<Option<Error>>>,
     frame_bytes: usize,
     audio_enabled: bool,
     audio_frames: u64,
+    stream: AgileReference<IRandomAccessStream>,
+    output: Option<RecordingOutput>,
 }
 
 impl VideoEncoder {
@@ -115,64 +135,103 @@ impl VideoEncoder {
         let (audio, audio_rx) = mpsc::channel::<Sample>();
         let video_rx = Arc::new(Mutex::new(video_rx));
         let audio_rx = Arc::new(Mutex::new(audio_rx));
+        let processed = Arc::new(AtomicBool::new(false));
+        let first_processed = processed.clone();
+        let failure = Arc::new(Mutex::new(None));
+        let sample_failure = failure.clone();
         let requested = source.SampleRequested(&TypedEventHandler::<
             MediaStreamSource,
             MediaStreamSourceSampleRequestedEventArgs,
-        >::new(move |_, args| {
-            let request = args.as_ref().ok_or_else(Error::empty)?.Request()?;
-            let is_audio = request
-                .StreamDescriptor()?
-                .cast::<AudioStreamDescriptor>()
-                .is_ok();
-            let receiver = if is_audio {
-                audio_rx.clone()
-            } else {
-                video_rx.clone()
-            };
-            let deferral = request.GetDeferral()?;
-            // 等待样本不能阻塞 MSS 事件线程，EOS 后必须完成 deferral。
-            ThreadPool::RunWithPriorityAndOptionsAsync(
-                &WorkItemHandler::new(move |_| {
-                    let result = (|| {
-                        let sample = receiver.lock().map_err(|_| Error::empty())?.recv();
-                        match sample {
-                            Ok(Some((bytes, timestamp))) => {
-                                let buffer = CryptographicBuffer::CreateFromByteArray(&bytes)?;
-                                let sample = MediaStreamSample::CreateFromBuffer(
-                                    &buffer,
-                                    TimeSpan {
-                                        Duration: timestamp,
-                                    },
-                                )?;
-                                if is_audio {
+        >::new(move |sender, args| {
+            let source = sender.as_ref().ok_or_else(Error::empty)?.clone();
+            let event_result = (|| {
+                let request = args.as_ref().ok_or_else(Error::empty)?.Request()?;
+                let is_audio = request
+                    .StreamDescriptor()?
+                    .cast::<AudioStreamDescriptor>()
+                    .is_ok();
+                let receiver = if is_audio {
+                    audio_rx.clone()
+                } else {
+                    video_rx.clone()
+                };
+                let deferral = request.GetDeferral()?;
+                let completion = deferral.clone();
+                let processed = first_processed.clone();
+                let failure = sample_failure.clone();
+                let worker_source = source.clone();
+                // 等待样本不能阻塞 MSS 事件线程，EOS 后必须完成 deferral。
+                let scheduled = ThreadPool::RunWithPriorityAndOptionsAsync(
+                    &WorkItemHandler::new(move |_| {
+                        let result = (|| {
+                            let sample = receiver.lock().map_err(|_| Error::empty())?.recv();
+                            match sample {
+                                Ok(Some((bytes, timestamp))) => {
+                                    let buffer = CryptographicBuffer::CreateFromByteArray(&bytes)?;
+                                    let sample = MediaStreamSample::CreateFromBuffer(
+                                        &buffer,
+                                        TimeSpan {
+                                            Duration: timestamp,
+                                        },
+                                    )?;
                                     sample.SetDuration(TimeSpan {
-                                        Duration: (bytes.len() / ALIGN) as i64 * 10_000_000
-                                            / RATE as i64,
+                                        Duration: if is_audio {
+                                            (bytes.len() / ALIGN) as i64 * 10_000_000 / RATE as i64
+                                        } else {
+                                            VIDEO_DURATION
+                                        },
                                     })?;
+                                    if !is_audio && !processed.load(Ordering::Acquire) {
+                                        let processed = processed.clone();
+                                        sample.Processed(&TypedEventHandler::new(
+                                            move |_, _| {
+                                                processed.store(true, Ordering::Release);
+                                                Ok(())
+                                            },
+                                        ))?;
+                                    }
+                                    request.SetSample(&sample)
                                 }
-                                request.SetSample(&sample)
+                                _ => request.SetSample(None),
                             }
-                            _ => request.SetSample(None),
+                        })();
+                        let completed = deferral.Complete();
+                        let result = result.and(completed);
+                        if let Err(error) = &result {
+                            if let Ok(mut failure) = failure.lock() {
+                                failure.get_or_insert_with(|| error.clone());
+                            }
+                            let _ = worker_source.NotifyError(MediaStreamSourceErrorStatus::Other);
                         }
-                    })();
-                    let completed = deferral.Complete();
-                    result.and(completed)
-                }),
-                WorkItemPriority::Normal,
-                WorkItemOptions::None,
-            )?;
-            Ok(())
+                        result
+                    }),
+                    WorkItemPriority::Normal,
+                    WorkItemOptions::None,
+                );
+                if let Err(error) = scheduled {
+                    let _ = completion.Complete();
+                    return Err(error);
+                }
+                Ok(())
+            })();
+            if let Err(error) = &event_result {
+                if let Ok(mut failure) = sample_failure.lock() {
+                    failure.get_or_insert_with(|| error.clone());
+                }
+                let _ = source.NotifyError(MediaStreamSourceErrorStatus::Other);
+            }
+            event_result
         }))?;
 
         let transcoder = MediaTranscoder::new()?;
         transcoder.SetHardwareAccelerationEnabled(hardware_encoding)?;
-        std::fs::File::create(path).map_err(|e| {
+        let output = RecordingOutput::new(std::path::Path::new(path)).map_err(|e| {
             Error::new(
                 windows::core::HRESULT(0x80004005u32 as i32),
                 format!("创建录屏文件失败：{e}"),
             )
         })?;
-        let full_path = std::fs::canonicalize(path).map_err(|e| {
+        let full_path = std::fs::canonicalize(output.path()).map_err(|e| {
             Error::new(
                 windows::core::HRESULT(0x80004005u32 as i32),
                 format!("解析录屏文件路径失败：{e}"),
@@ -184,6 +243,9 @@ impl VideoEncoder {
         ))?
         .join()?;
         let stream = file.OpenAsync(FileAccessMode::ReadWrite)?.join()?;
+        // 在所有后续可失败操作之前建立关闭守卫，先关流再清理临时文件。
+        let mut initializing_stream = InitializingStream(Some(stream.clone()));
+        let stream_reference = AgileReference::new(&stream)?;
         let prepared = transcoder
             .PrepareMediaStreamSourceTranscodeAsync(&source, &stream, &profile)?
             .join()?;
@@ -194,11 +256,14 @@ impl VideoEncoder {
             ));
         }
         let transcode = prepared.TranscodeAsync()?;
+        let cancellation = transcode.clone();
         let transcode = std::thread::spawn(move || {
             let result = transcode.join();
             drop(transcoder);
             result
         });
+        // 编码器接管关闭职责，局部守卫只释放引用。
+        initializing_stream.0.take();
         Ok(Self {
             source,
             starting,
@@ -206,9 +271,16 @@ impl VideoEncoder {
             video: Some(video),
             audio: Some(audio),
             transcode: Some(transcode),
+            cancel: Some(Box::new(move || {
+                let _ = cancellation.Cancel();
+            })),
+            processed,
+            failure,
             frame_bytes: width as usize * height as usize * 3 / 2,
             audio_enabled,
             audio_frames: 0,
+            stream: stream_reference,
+            output: Some(output),
         })
     }
 
@@ -249,7 +321,10 @@ impl VideoEncoder {
     }
 
     /// 在写入阶段就传播异步转码失败，避免错误后继续积压帧。
-    fn check_status(&mut self) -> Result<()> {
+    pub(super) fn check_status(&mut self) -> Result<()> {
+        if let Some(error) = self.failure.lock().map_err(|_| Error::empty())?.clone() {
+            return Err(error);
+        }
         if self.transcode.as_ref().is_none_or(|t| t.is_finished()) {
             self.wait()?;
             return Err(Error::new(
@@ -260,10 +335,30 @@ impl VideoEncoder {
         Ok(())
     }
 
+    /// 真实视频样本释放后检查异步错误，入队成功本身不代表编码可用。
+    pub(super) fn startup_ready(&mut self) -> Result<bool> {
+        let processed = self.processed.load(Ordering::Acquire);
+        self.check_status()?;
+        Ok(processed)
+    }
+
     /// 发送双流 EOS，等待 MP4 索引写完；Drop 负责事件清理。
     pub(in super::super) fn finish(mut self) -> Result<()> {
         self.close_streams();
-        self.wait()
+        self.wait()?;
+        if let Some(error) = self.failure.lock().map_err(|_| Error::empty())?.clone() {
+            return Err(error);
+        }
+        self.stream.resolve()?.Close()?;
+        // 先释放 MSS 和转码操作持有的文件句柄，再发布成品及清理临时链接。
+        let mut output = self.output.take().ok_or_else(Error::empty)?;
+        drop(self);
+        output.publish().map_err(|e| {
+            Error::new(
+                windows::core::HRESULT(0x80004005u32 as i32),
+                format!("发布录屏文件失败：{e}"),
+            )
+        })
     }
 
     /// EOS 后关闭所有发送端，使并发样本请求也能结束等待。
@@ -278,9 +373,25 @@ impl VideoEncoder {
 
     /// 取回转码线程结果，确保只等待一次。
     fn wait(&mut self) -> Result<()> {
-        self.transcode
-            .take()
-            .map_or(Ok(()), |t| t.join().map_err(|_| Error::empty())?)
+        let result = self.transcode.take().map_or(Ok(()), |t| {
+            t.join().unwrap_or_else(|_| {
+                Err(Error::new(
+                    windows::core::HRESULT(0x80004005u32 as i32),
+                    "录屏转码线程异常",
+                ))
+            })
+        });
+        self.cancel.take();
+        if let Err(error) = &result {
+            if let Ok(mut failure) = self.failure.lock() {
+                failure.get_or_insert_with(|| error.clone());
+            }
+        }
+        // 样本处理错误发生在 NotifyError 之前，优先保留它而非后续通用转码错误。
+        match self.failure.lock().map_err(|_| Error::empty())?.clone() {
+            Some(error) => Err(error),
+            None => result,
+        }
     }
 }
 
@@ -302,8 +413,14 @@ impl Drop for VideoEncoder {
     /// 初始化后提前退出也唤醒样本请求，再释放 MSS 事件。
     fn drop(&mut self) {
         self.close_streams();
+        if let Some(cancel) = self.cancel.take() {
+            cancel();
+        }
         let _ = self.wait();
         let _ = self.source.RemoveStarting(self.starting);
         let _ = self.source.RemoveSampleRequested(self.requested);
+        if let Ok(stream) = self.stream.resolve() {
+            let _ = stream.Close();
+        }
     }
 }

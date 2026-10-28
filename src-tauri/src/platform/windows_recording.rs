@@ -1,6 +1,8 @@
 use super::windows_audio::{AudioCapture, Clock, SharedEncoder};
 #[path = "windows_recording_encoder.rs"]
 pub(super) mod encoder;
+#[path = "windows_recording_output.rs"]
+mod output;
 #[path = "windows_recording_pixels.rs"]
 mod pixels;
 use encoder::VideoEncoder;
@@ -25,6 +27,7 @@ type Control = CaptureControl<Recorder, CaptureError>;
 
 pub struct Recording {
     control: Option<Control>,
+    started: bool,
 }
 
 pub struct Config {
@@ -122,7 +125,7 @@ impl GraphicsCaptureApiHandler for Recorder {
 
 impl Recorder {
     // 补写最后一帧，使静止画面也保留到用户停止的时间，然后写入 MP4 索引。
-    fn finish(&mut self) -> Result<(), String> {
+    fn finish(&mut self, save: bool) -> Result<(), String> {
         let audio_result = self.audio.take().map_or(Ok(()), |mut audio| audio.stop());
         let Some(mut encoder) = self
             .encoder
@@ -132,16 +135,24 @@ impl Recorder {
         else {
             return audio_result;
         };
+        if !save {
+            // 启动或捕获失败时走编码器取消路径，不发布失败输出。
+            let status = encoder.check_status().map_err(|e| e.to_string());
+            drop(encoder);
+            return audio_result.and(status);
+        }
         let has_frame = self.last_frame.is_some();
         let result = if has_frame {
-            encoder
-                .send_frame_buffer(&self.pixels, self.clock.elapsed()?)
-                .map_err(|e| format!("写入最后一帧失败：{e}"))
+            self.clock.elapsed().and_then(|timestamp| {
+                encoder
+                    .send_frame_buffer(&self.pixels, timestamp)
+                    .map_err(|e| format!("写入最后一帧失败：{e}"))
+            })
         } else {
             Err("未捕获到录屏画面，请检查显示器或系统捕获设置".into())
         };
-        let finished = encoder.finish().map_err(|e| format!("保存 MP4 失败：{e}"));
-        audio_result.and(result).and(finished)
+        audio_result.and(result)?;
+        encoder.finish().map_err(|e| format!("保存 MP4 失败：{e}"))
     }
 }
 
@@ -190,21 +201,78 @@ impl Recording {
         );
         let control = Recorder::start_free_threaded(settings)
             .map_err(|e| format!("启动 Windows 录屏失败：{e}"))?;
-        Ok(Self {
+        let mut recording = Self {
             control: Some(control),
-        })
+            started: false,
+        };
+        recording.wait_for_start()?;
+        recording.started = true;
+        Ok(recording)
+    }
+
+    /// 首帧被转码管线消费且未检测到异步失败后才报告启动成功。
+    fn wait_for_start(&mut self) -> Result<(), String> {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let control = self.control.as_ref().ok_or("录屏捕获已停止")?;
+            if control.is_finished() {
+                // 回收捕获线程以取得原始回调错误，避免被无首帧或超时覆盖。
+                return self.finish().and(Err("录屏捕获在启动期间已停止".into()));
+            }
+            let callback = control.callback();
+            let Some(mut recorder) = callback.try_lock() else {
+                if Instant::now() >= deadline {
+                    return Err("等待录屏首帧编码超时，请检查显示器或系统编码设置".into());
+                }
+                std::thread::sleep(Duration::from_millis(10));
+                continue;
+            };
+            if recorder
+                .audio
+                .as_ref()
+                .is_some_and(AudioCapture::is_finished)
+            {
+                let mut audio = recorder.audio.take().ok_or("音频采集已停止")?;
+                audio.stop()?;
+                return Err("音频采集意外停止".into());
+            }
+            let ready = match recorder.encoder.try_lock() {
+                Ok(mut encoder) => encoder
+                    .as_mut()
+                    .ok_or("录制已停止")?
+                    .startup_ready()
+                    .map_err(|e| e.to_string())?,
+                Err(std::sync::TryLockError::WouldBlock) => false,
+                Err(std::sync::TryLockError::Poisoned(_)) => {
+                    return Err("录屏编码器锁异常".into());
+                }
+            };
+            if ready {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err("等待录屏首帧编码超时，请检查显示器或系统编码设置".into());
+            }
+            drop(recorder);
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 
     /// 视频或音频线程停止后通知调用方收尾并获取错误。
     pub fn is_finished(&self) -> bool {
         self.control.as_ref().is_none_or(|control| {
+            let callback = control.callback();
+            let recorder = callback.lock();
             control.is_finished()
-                || control
-                    .callback()
-                    .lock()
+                || recorder
                     .audio
                     .as_ref()
                     .is_some_and(AudioCapture::is_finished)
+                || recorder.encoder.lock().map_or(true, |mut encoder| {
+                    encoder
+                        .as_mut()
+                        .is_none_or(|encoder| encoder.check_status().is_err())
+                })
         })
     }
 
@@ -219,7 +287,31 @@ impl Recording {
             return Ok(());
         };
         let callback = control.callback();
-        let stopped = control.stop().map_err(|e| format!("停止捕获失败：{e}"));
+        // 停止前保存已检测到的原始错误，控制层或收尾错误不能覆盖它。
+        let first_error = callback.try_lock().and_then(|mut recorder| {
+            let encoder_error = recorder.encoder.try_lock().ok().and_then(|mut encoder| {
+                encoder
+                    .as_mut()
+                    .and_then(|encoder| encoder.check_status().err())
+                    .map(|error| error.to_string())
+            });
+            let audio_error = if recorder
+                .audio
+                .as_ref()
+                .is_some_and(AudioCapture::is_finished)
+            {
+                recorder
+                    .audio
+                    .take()
+                    .and_then(|mut audio| audio.stop().err())
+            } else {
+                None
+            };
+            encoder_error.or(audio_error)
+        });
+        let stopped = control.stop();
+        let save = self.started && first_error.is_none() && stopped.is_ok();
+        let stopped = stopped.map_err(|e| format!("停止捕获失败：{e}"));
         let saved = std::thread::spawn(move || {
             unsafe {
                 windows::Win32::System::WinRT::RoInitialize(
@@ -227,15 +319,18 @@ impl Recording {
                 )
             }
             .map_err(|e| format!("初始化编码收尾失败：{e}"))?;
-            let result = callback.lock().finish();
+            let result = callback.lock().finish(save);
             unsafe {
                 windows::Win32::System::WinRT::RoUninitialize();
             }
             result
         })
         .join()
-        .map_err(|_| "录屏保存线程异常".to_string())?;
-        stopped.and(saved)
+        .unwrap_or_else(|_| Err("录屏保存线程异常".to_string()));
+        match first_error {
+            Some(error) => Err(error),
+            None => stopped.and(saved),
+        }
     }
 }
 

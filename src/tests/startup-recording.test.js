@@ -88,3 +88,46 @@ test("script shortcut handles toggle rejection and still ignores repeated presse
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(h.evaluate("shortcutToggleCalls"), 2);
 });
+
+for (const isMac of [true, false]) {
+  test(`${isMac ? "macOS" : "Windows"} recording monitor finalizes a failed native task and preserves its error`, async () => {
+    const h = harness(isMac);
+    h.evaluate(`
+      globalThis.monitorCalls = [];
+      setTimeout = (callback) => { globalThis.pollRecording = callback; return 1; };
+      clearTimeout = () => {};
+      invoke = async (command) => {
+        monitorCalls.push(command);
+        if (command === "is_recording") return false;
+        if (command === "stop_recording") throw new Error("原生编码器错误");
+      };
+      restoreIndicatorAfterRecording = async () => { monitorCalls.push("restore"); };
+      updateRecUI = () => {};
+      setRecordingActive(true);
+      startRecordingMonitor();
+    `);
+    await h.evaluate("pollRecording()");
+    assert.equal(h.evaluate('monitorCalls.join(",")'), "is_recording,stop_recording,restore");
+    assert.match(h.elements.get("record-toggle").title, /原生编码器错误/);
+    assert.equal(h.evaluate("recordingActive"), false);
+    assert.equal(h.evaluate("recordingBusy"), false);
+  });
+}
+
+test("recording status query failure leaves an active recording running", async () => {
+  const h = harness();
+  h.evaluate(`
+    setTimeout = (callback) => { globalThis.pollRecording = callback; return 1; };
+    clearTimeout = () => {};
+    globalThis.monitorCalls = [];
+    invoke = async (command) => {
+      monitorCalls.push(command);
+      throw new Error("查询失败");
+    };
+    setRecordingActive(true);
+    startRecordingMonitor();
+  `);
+  await h.evaluate("pollRecording()");
+  assert.equal(h.evaluate("recordingActive"), true);
+  assert.equal(h.evaluate('monitorCalls.join(",")'), "is_recording");
+});

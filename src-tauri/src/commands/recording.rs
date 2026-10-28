@@ -50,18 +50,13 @@ pub fn stop_recording_process(process: RecordingProcess) -> Result<String, Strin
     }
 }
 
-/// 清理 Windows 已结束任务；macOS 保留错误至停止或再次启动时返回。
-pub fn clear_finished_recording(guard: &mut Option<RecordingProcess>) {
-    #[cfg(target_os = "macos")]
-    // 保留失败任务，供 stop 返回原生错误，而不是丢失失败原因。
-    let _ = &guard;
-    #[cfg(target_os = "windows")]
-    if let Some(RecordingProcess::Windows(recording, _)) = guard.as_ref() {
-        if recording.is_finished() {
-            if let Some(process) = guard.take() {
-                let _ = stop_recording_process(process);
-            }
-        }
+/// 检查平台任务是否终止；查询不消费任务，保留错误供显式收尾。
+fn recording_finished(process: &RecordingProcess) -> bool {
+    match process {
+        #[cfg(target_os = "macos")]
+        RecordingProcess::Mac(recording, _) => recording.is_finished(),
+        #[cfg(target_os = "windows")]
+        RecordingProcess::Windows(recording, _) => recording.is_finished(),
     }
 }
 /// 录制预设区域或主屏：macOS 保存 MOV，Windows 原生编码为 MP4。
@@ -90,10 +85,7 @@ pub fn start_recording(
     #[cfg(target_os = "macos")]
     let _ = hardware_encoding;
     let mut guard = state.0.lock().map_err(|_| "录制状态异常".to_string())?;
-    clear_finished_recording(&mut guard);
-    #[cfg(target_os = "macos")]
-    if matches!(guard.as_ref(), Some(RecordingProcess::Mac(recording, _)) if recording.is_finished())
-    {
+    if guard.as_ref().is_some_and(recording_finished) {
         if let Some(process) = guard.take() {
             stop_recording_process(process)?;
         }
@@ -173,13 +165,10 @@ pub fn stop_recording(state: tauri::State<RecState>) -> Result<String, String> {
 /// 查询当前是否正在录屏
 #[tauri::command]
 pub fn is_recording(state: tauri::State<RecState>) -> bool {
-    let Ok(mut guard) = state.0.lock() else {
+    let Ok(guard) = state.0.lock() else {
         return false;
     };
-    clear_finished_recording(&mut guard);
-    #[cfg(target_os = "macos")]
-    if let Some(RecordingProcess::Mac(recording, _)) = guard.as_ref() {
-        return !recording.is_finished();
-    }
-    guard.is_some()
+    guard
+        .as_ref()
+        .is_some_and(|process| !recording_finished(process))
 }

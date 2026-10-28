@@ -120,8 +120,8 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
     let audio: AVAssetWriterInput?
     let outputWidth: Int
     let outputHeight: Int
-    /// 所有录屏像素先统一到 SDR sRGB，再交给 Rec.709 视频编码器。
-    let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+    /// 渲染使用与输出视频颜色标记一致的 Rec.709 色彩空间。
+    let recordingColorSpace = CGColorSpace(name: CGColorSpace.itur_709)!
     let imageContext: CIContext
     let lifecycle = DispatchQueue(label: "screen-capture.session")
     let stopLock = NSLock()
@@ -177,8 +177,8 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
             AVNumberOfChannelsKey: 2, AVEncoderBitRateKey: 192000
         ]) : nil
         imageContext = CIContext(options: [
-            .workingColorSpace: sRGBColorSpace,
-            .outputColorSpace: sRGBColorSpace
+            .workingColorSpace: recordingColorSpace,
+            .outputColorSpace: recordingColorSpace
         ])
         super.init()
         video.expectsMediaDataInRealTime = true
@@ -200,6 +200,18 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         ready.signal()
     }
 
+    /// 在写入队列检查原生终止状态，背压与轮询均不能掩盖首个错误。
+    func checkHealth(checkSession: Bool = true) throws {
+        if error == nil && writer.status != .writing {
+            fail(writer.error ?? failure("录屏编码器已停止（状态 \(writer.status.rawValue)）"))
+        }
+        if error == nil && checkSession && didSignalReady,
+           let session = session, !session.isRunning {
+            fail(failure("屏幕/麦克风采集会话意外停止"))
+        }
+        if let error = error { throw error }
+    }
+
     /// 麦克风必须收到真实 PCM 帧；系统声音允许全程无音频回调。
     func signalIfReady() {
         guard !didSignalReady, videoCount > 0,
@@ -212,6 +224,7 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
     func append(_ sample: CMSampleBuffer, isAudio: Bool) {
         guard !stopping, error == nil, CMSampleBufferDataIsReady(sample) else { return }
         do {
+            try checkHealth()
             if isAudio {
                 if audio != nil && started { try appendAudio(sample) }
                 return
@@ -245,19 +258,18 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
             kCVPixelFormatType_32BGRA,
             [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &result)
         guard status == kCVReturnSuccess, let result = result else { throw failure("创建录屏缩放缓冲失败") }
-        setSDRColorAttachments(on: image)
-        setSDRColorAttachments(on: result)
+        // 保留输入的 P3、sRGB 等真实附件，让 Core Image 执行颜色转换。
         let input = CIImage(cvPixelBuffer: image)
         let scaled = input.transformed(by: CGAffineTransform(
             scaleX: CGFloat(outputWidth) / input.extent.width,
             y: CGFloat(outputHeight) / input.extent.height))
         imageContext.render(scaled, to: result, bounds: CGRect(x: 0, y: 0,
-            width: outputWidth, height: outputHeight), colorSpace: sRGBColorSpace)
+            width: outputWidth, height: outputHeight), colorSpace: recordingColorSpace)
         setSDRColorAttachments(on: result)
         return result
     }
 
-    /// 给 RGB 像素缓冲声明 SDR sRGB/Rec.709，避免编码器按未知色域解释像素。
+    /// 仅标记转换后的 Rec.709 输出，不改写采集缓冲的源颜色信息。
     private func setSDRColorAttachments(on buffer: CVPixelBuffer) {
         CVBufferSetAttachment(buffer, kCVImageBufferColorPrimariesKey,
             kCVImageBufferColorPrimaries_ITU_R_709_2, .shouldPropagate)
@@ -284,8 +296,9 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
 
     /// 对编码器背压做有界等待；绝不将等待失败当成合法静音。
     func waitUntilReady(_ input: AVAssetWriterInput, deadline: Date) throws {
+        try checkHealth(checkSession: false)
         while !input.isReadyForMoreMediaData {
-            guard writer.status == .writing else { throw writer.error ?? failure("录屏编码器已停止") }
+            try checkHealth(checkSession: false)
             guard Date() < deadline else { throw failure("等待录屏编码器接收样本超时") }
             Thread.sleep(forTimeInterval: 0.002)
         }
@@ -304,6 +317,7 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
     /// 按 PCM 帧补齐实际音频之间的空白；全程无声也产生真实 AAC 音轨。
     func fillSilence(until target: Int64, deadline: Date, realtime: Bool = false) throws {
         guard let audio = audio else { return }
+        try checkHealth(checkSession: false)
         while audioFrames < target {
             if realtime && !audio.isReadyForMoreMediaData { return }
             try waitUntilReady(audio, deadline: deadline)
@@ -512,6 +526,7 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         config.sourceRect = rect
         config.width = outputWidth
         config.height = outputHeight
+        config.pixelFormat = kCVPixelFormatType_32BGRA
         config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
         config.showsCursor = true
         config.capturesAudio = capturesAudio
@@ -544,7 +559,13 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
     func changeSession(running: Bool) throws {
         let _: Void = try awaitResult(label: running ? "启动采集会话" : "停止采集会话") { done in
             lifecycle.async { [self] in
-                if running { session?.startRunning() } else { session?.stopRunning() }
+                if running {
+                    session?.startRunning()
+                    guard session?.isRunning == true else {
+                        done(.failure(failure("屏幕/麦克风采集会话未能启动")))
+                        return
+                    }
+                } else { session?.stopRunning() }
                 done(.success(()))
             }
         }
@@ -561,6 +582,7 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         }
         do {
             if let problem = error ?? stopError { throw problem }
+            try checkHealth(checkSession: false)
             guard started, videoCount > 0, let image = lastImage else {
                 throw failure("录屏未收到视频帧，请检查屏幕录制权限")
             }
@@ -589,10 +611,11 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
             }
             guard writer.status == .completed else { throw writer.error ?? failure("录屏文件封装失败") }
         } catch {
+            fail(error)
             // cancelWriting 不会销毁 finishWriting 回调持有的 writer/recorder。
             writer.cancelWriting()
             try? FileManager.default.removeItem(at: writer.outputURL)
-            throw error
+            throw self.error ?? error
         }
     }
 
@@ -602,6 +625,11 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         stopLock.lock()
         stopRequested = true
         stopLock.unlock()
+        // 在主动停止设备之前保存异常，避免停止动作掩盖此前 writer/session 错误。
+        queue.sync {
+            if let startupError = startupError { fail(startupError) }
+            try? checkHealth()
+        }
         var stopError: Error? = startupError
         if #available(macOS 13.0, *), let stream = screenStream as? SCStream {
             do {
@@ -707,6 +735,8 @@ public func recordStart(_ path: UnsafePointer<CChar>, _ source: UnsafePointer<CC
         let signaled = instance.ready.wait(timeout: .now() + (instance.requiresMicrophoneAudio ? 15 : 10)) == .success
         let _: Void = try awaitResult(label: "检查录屏启动结果") { done in
             instance.queue.async {
+                do { try instance.checkHealth() }
+                catch { done(.failure(error)); return }
                 if let error = instance.error { done(.failure(error)) }
                 else if !signaled {
                     let detail = instance.videoCount == 0
@@ -719,12 +749,14 @@ public func recordStart(_ path: UnsafePointer<CChar>, _ source: UnsafePointer<CC
         }
         return Unmanaged.passRetained(instance).toOpaque()
     } catch {
+        var originalError = error
         if let recorder = recorder {
-            try? recorder.stop(aborting: error)
+            originalError = recorder.queue.sync { recorder.error ?? error }
+            try? recorder.stop(aborting: originalError)
         } else {
             try? FileManager.default.removeItem(atPath: destination)
         }
-        outError.pointee = message(errorMessage(error))
+        outError.pointee = message(errorMessage(originalError))
         return nil
     }
 }
@@ -742,7 +774,8 @@ public func recordStop(_ handle: UnsafeMutableRawPointer) -> UnsafeMutablePointe
 public func recordFinished(_ handle: UnsafeMutableRawPointer) -> Bool {
     let recorder = Unmanaged<Recorder>.fromOpaque(handle).takeUnretainedValue()
     return recorder.queue.sync {
-        recorder.error != nil || (recorder.session != nil && recorder.session?.isRunning == false)
+        do { try recorder.checkHealth(); return false }
+        catch { return true }
     }
 }
 
