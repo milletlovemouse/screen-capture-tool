@@ -1,9 +1,9 @@
-//! 可选择硬件加速的 BGRA → H.264 路径，支持关闭加速以兼容虚拟机。
+//! 可选择硬件加速的 NV12 → H.264 路径，颜色转换由程序统一完成。
 use super::super::windows_audio::timeline::{ALIGN, BITS, CHANNELS, RATE};
 use std::sync::{mpsc, Arc, Mutex};
 use windows::{
     core::{Error, Interface, Result, HSTRING},
-    Foundation::{TimeSpan, TypedEventHandler},
+    Foundation::{PropertyValue, TimeSpan, TypedEventHandler},
     Media::{
         Core::{
             AudioStreamDescriptor, MediaStreamSample, MediaStreamSource,
@@ -19,6 +19,11 @@ use windows::{
     Security::Cryptography::CryptographicBuffer,
     Storage::{FileAccessMode, StorageFile},
     System::Threading::{ThreadPool, WorkItemHandler, WorkItemOptions, WorkItemPriority},
+    Win32::Media::MediaFoundation::{
+        MFNominalRange_16_235, MFVideoPrimaries_BT709, MFVideoTransFunc_sRGB,
+        MFVideoTransferMatrix_BT709, MF_MT_DEFAULT_STRIDE, MF_MT_TRANSFER_FUNCTION,
+        MF_MT_VIDEO_NOMINAL_RANGE, MF_MT_VIDEO_PRIMARIES, MF_MT_YUV_MATRIX,
+    },
 };
 
 type Sample = Option<(Vec<u8>, i64)>;
@@ -54,6 +59,7 @@ impl VideoEncoder {
         output.FrameRate()?.SetDenominator(1)?;
         output.PixelAspectRatio()?.SetNumerator(1)?;
         output.PixelAspectRatio()?.SetDenominator(1)?;
+        set_color_properties(&output)?;
         profile.SetVideo(&output)?;
         let container = ContainerEncodingProperties::new()?;
         container.SetSubtype(&MediaEncodingSubtypes::Mpeg4()?)?;
@@ -70,14 +76,20 @@ impl VideoEncoder {
             profile.SetAudio(None)?;
         }
 
-        // 与 windows-capture 2.0.1 相同的输入契约：紧密排列、倒序行的 BGRA8。
+        // 输入已经完成 RGB → YUV，避免两种编码模式继续依赖系统 BGRA 转换器。
         let input = VideoEncodingProperties::CreateUncompressed(
-            &MediaEncodingSubtypes::Bgra8()?,
+            &MediaEncodingSubtypes::Nv12()?,
             width,
             height,
         )?;
         input.FrameRate()?.SetNumerator(30)?;
         input.FrameRate()?.SetDenominator(1)?;
+        input.PixelAspectRatio()?.SetNumerator(1)?;
+        input.PixelAspectRatio()?.SetDenominator(1)?;
+        set_color_properties(&input)?;
+        input
+            .Properties()?
+            .Insert(MF_MT_DEFAULT_STRIDE, &PropertyValue::CreateUInt32(width)?)?;
         let video_desc = VideoStreamDescriptor::Create(&input)?;
         let source = if audio_enabled {
             let pcm =
@@ -194,13 +206,13 @@ impl VideoEncoder {
             video: Some(video),
             audio: Some(audio),
             transcode: Some(transcode),
-            frame_bytes: width as usize * height as usize * 4,
+            frame_bytes: width as usize * height as usize * 3 / 2,
             audio_enabled,
             audio_frames: 0,
         })
     }
 
-    /// 提交自有 BGRA 副本，沿用共享时钟的 100 ns 时间戳。
+    /// 提交自有 NV12 副本，沿用共享时钟的 100 ns 时间戳。
     pub(in super::super) fn send_frame_buffer(
         &mut self,
         bytes: &[u8],
@@ -209,7 +221,7 @@ impl VideoEncoder {
         if bytes.len() != self.frame_bytes {
             return Err(Error::new(
                 windows::core::HRESULT(0x80070057u32 as i32),
-                "BGRA 帧长度与编码尺寸不一致",
+                "NV12 帧长度与编码尺寸不一致",
             ));
         }
         self.check_status()?;
@@ -270,6 +282,20 @@ impl VideoEncoder {
             .take()
             .map_or(Ok(()), |t| t.join().map_err(|_| Error::empty())?)
     }
+}
+
+/// 与实际像素转换保持一致：BT.709 矩阵、有限范围，保留 SDR 桌面的 sRGB 传递函数。
+fn set_color_properties(video: &VideoEncodingProperties) -> Result<()> {
+    let properties = video.Properties()?;
+    for (key, value) in [
+        (MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709.0 as u32),
+        (MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_sRGB.0 as u32),
+        (MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709.0 as u32),
+        (MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_16_235.0 as u32),
+    ] {
+        properties.Insert(key, &PropertyValue::CreateUInt32(value)?)?;
+    }
+    Ok(())
 }
 
 impl Drop for VideoEncoder {

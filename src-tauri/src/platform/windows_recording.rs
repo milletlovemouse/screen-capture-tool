@@ -73,13 +73,13 @@ impl GraphicsCaptureApiHandler for Recorder {
             encoder,
             audio,
             rect: ctx.flags.rect,
-            pixels: vec![0; (w * h * 4) as usize],
+            pixels: vec![0; w as usize * h as usize * 3 / 2],
             clock,
             last_frame: None,
         })
     }
 
-    // 限制捕获写入频率；复用裁剪缓冲，并转换 Windows 编码器要求的倒序 BGRA 行。
+    // 限制捕获写入频率；复用裁剪缓冲，明确转换为顶向下的 NV12。
     fn on_frame_arrived(
         &mut self,
         frame: &mut Frame,
@@ -108,7 +108,7 @@ impl GraphicsCaptureApiHandler for Recorder {
         let mut buffer = frame.buffer_crop(x, y, x + w, y + h)?;
         let stride = buffer.row_pitch() as usize;
         let raw = buffer.as_raw_buffer();
-        pixels::pack_bgra(raw, stride, w as usize, h as usize, &mut self.pixels)?;
+        pixels::pack_nv12(raw, stride, w as usize, h as usize, &mut self.pixels)?;
         self.encoder
             .lock()
             .map_err(|_| "录屏编码器锁异常")?
