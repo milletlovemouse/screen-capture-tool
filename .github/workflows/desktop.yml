@@ -237,5 +237,5 @@ jobs:
             release-assets/**/*.dmg
             release-assets/**/*.msi
             release-assets/**/latest.json
-            release-assets/**/*.sig
-            release-assets/**/*.tar.gz
+            release-assets/publish/*.sig
+            release-assets/publish/*.tar.gz
