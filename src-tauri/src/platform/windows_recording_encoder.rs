@@ -47,11 +47,11 @@ pub(in super::super) struct VideoEncoder {
     source: MediaStreamSource,
     starting: i64,
     requested: i64,
-    video: Option<mpsc::Sender<Sample>>,
+    video: Option<mpsc::SyncSender<Sample>>,
     audio: Option<mpsc::Sender<Sample>>,
     transcode: Option<std::thread::JoinHandle<Result<()>>>,
     cancel: Option<Box<dyn FnOnce() + Send>>,
-    processed: Arc<AtomicBool>,
+    delivered: Arc<AtomicBool>,
     failure: Arc<Mutex<Option<Error>>>,
     frame_bytes: usize,
     audio_enabled: bool,
@@ -121,7 +121,8 @@ impl VideoEncoder {
         } else {
             MediaStreamSource::CreateFromDescriptor(&video_desc)?
         };
-        source.SetBufferTime(TimeSpan { Duration: 300_000 })?;
+        // 桌面可能长时间静止，不能等待后续画面填满预缓冲。
+        source.SetBufferTime(TimeSpan { Duration: 0 })?;
         let starting = source.Starting(&TypedEventHandler::<
             MediaStreamSource,
             MediaStreamSourceStartingEventArgs,
@@ -131,12 +132,13 @@ impl VideoEncoder {
                 .Request()?
                 .SetActualStartPosition(TimeSpan { Duration: 0 })
         }))?;
-        let (video, video_rx) = mpsc::channel::<Sample>();
+        // 编码落后时最多保留两帧，避免无界积压放大延迟和内存占用。
+        let (video, video_rx) = mpsc::sync_channel::<Sample>(2);
         let (audio, audio_rx) = mpsc::channel::<Sample>();
         let video_rx = Arc::new(Mutex::new(video_rx));
         let audio_rx = Arc::new(Mutex::new(audio_rx));
-        let processed = Arc::new(AtomicBool::new(false));
-        let first_processed = processed.clone();
+        let delivered = Arc::new(AtomicBool::new(false));
+        let first_delivered = delivered.clone();
         let failure = Arc::new(Mutex::new(None));
         let sample_failure = failure.clone();
         let requested = source.SampleRequested(&TypedEventHandler::<
@@ -157,14 +159,23 @@ impl VideoEncoder {
                 };
                 let deferral = request.GetDeferral()?;
                 let completion = deferral.clone();
-                let processed = first_processed.clone();
+                let delivered = first_delivered.clone();
                 let failure = sample_failure.clone();
                 let worker_source = source.clone();
                 // 等待样本不能阻塞 MSS 事件线程，EOS 后必须完成 deferral。
                 let scheduled = ThreadPool::RunWithPriorityAndOptionsAsync(
                     &WorkItemHandler::new(move |_| {
+                        let mut video_sample = false;
                         let result = (|| {
-                            let sample = receiver.lock().map_err(|_| Error::empty())?.recv();
+                            let receiver = receiver.lock().map_err(|_| Error::empty())?;
+                            let sample = loop {
+                                match receiver.recv_timeout(std::time::Duration::from_millis(500)) {
+                                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                                        request.ReportSampleProgress(0)?;
+                                    }
+                                    result => break result,
+                                }
+                            };
                             match sample {
                                 Ok(Some((bytes, timestamp))) => {
                                     let buffer = CryptographicBuffer::CreateFromByteArray(&bytes)?;
@@ -181,22 +192,20 @@ impl VideoEncoder {
                                             VIDEO_DURATION
                                         },
                                     })?;
-                                    if !is_audio && !processed.load(Ordering::Acquire) {
-                                        let processed = processed.clone();
-                                        sample.Processed(&TypedEventHandler::new(
-                                            move |_, _| {
-                                                processed.store(true, Ordering::Release);
-                                                Ok(())
-                                            },
-                                        ))?;
-                                    }
-                                    request.SetSample(&sample)
+                                    request.SetSample(&sample)?;
+                                    video_sample = !is_audio;
+                                    Ok(())
                                 }
                                 _ => request.SetSample(None),
                             }
                         })();
                         let completed = deferral.Complete();
                         let result = result.and(completed);
+                        // Processed 表示管线释放样本，编码器可能保留它直到收到更多帧。
+                        // 只在真实视频样本交付和 deferral 完成均成功后确认启动。
+                        if result.is_ok() && video_sample {
+                            delivered.store(true, Ordering::Release);
+                        }
                         if let Err(error) = &result {
                             if let Ok(mut failure) = failure.lock() {
                                 failure.get_or_insert_with(|| error.clone());
@@ -274,7 +283,7 @@ impl VideoEncoder {
             cancel: Some(Box::new(move || {
                 let _ = cancellation.Cancel();
             })),
-            processed,
+            delivered,
             failure,
             frame_bytes: width as usize * height as usize * 3 / 2,
             audio_enabled,
@@ -297,11 +306,47 @@ impl VideoEncoder {
             ));
         }
         self.check_status()?;
-        self.video
+        match self
+            .video
             .as_ref()
             .ok_or_else(Error::empty)?
-            .send(Some((bytes.to_vec(), timestamp)))
-            .map_err(|_| Error::empty())
+            .try_send(Some((bytes.to_vec(), timestamp)))
+        {
+            Ok(()) | Err(mpsc::TrySendError::Full(_)) => Ok(()),
+            Err(mpsc::TrySendError::Disconnected(_)) => Err(Error::empty()),
+        }
+    }
+
+    /// 收尾帧不能因队满丢弃，否则静止画面的结束时间会被截短。
+    pub(in super::super) fn send_final_frame(
+        &mut self,
+        bytes: &[u8],
+        timestamp: i64,
+    ) -> Result<()> {
+        // 调用方已回收音频线程；先结束音频，避免管线等音频而不消费视频。
+        self.audio.take();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut sample = Some((bytes.to_vec(), timestamp));
+        loop {
+            self.check_status()?;
+            match self
+                .video
+                .as_ref()
+                .ok_or_else(Error::empty)?
+                .try_send(sample)
+            {
+                Ok(()) => return Ok(()),
+                Err(mpsc::TrySendError::Disconnected(_)) => return Err(Error::empty()),
+                Err(mpsc::TrySendError::Full(pending)) => sample = pending,
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(Error::new(
+                    windows::core::HRESULT(0x800705B4u32 as i32),
+                    "等待录屏尾帧交付超时",
+                ));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
     }
 
     /// 与原编码器一致，用累计 PCM 帧数生成连续音频时间戳。
@@ -335,11 +380,11 @@ impl VideoEncoder {
         Ok(())
     }
 
-    /// 真实视频样本释放后检查异步错误，入队成功本身不代表编码可用。
+    /// 真实视频样本交付后检查异步错误，入队成功本身不代表管线已接收。
     pub(super) fn startup_ready(&mut self) -> Result<bool> {
-        let processed = self.processed.load(Ordering::Acquire);
+        let delivered = self.delivered.load(Ordering::Acquire);
         self.check_status()?;
-        Ok(processed)
+        Ok(delivered)
     }
 
     /// 发送双流 EOS，等待 MP4 索引写完；Drop 负责事件清理。
@@ -363,9 +408,8 @@ impl VideoEncoder {
 
     /// EOS 后关闭所有发送端，使并发样本请求也能结束等待。
     fn close_streams(&mut self) {
-        if let Some(video) = self.video.take() {
-            let _ = video.send(None);
-        }
+        // Receiver 会先消费已入队帧，随后由断开连接得到 EOS；关闭时不阻塞有界队列。
+        self.video.take();
         if let Some(audio) = self.audio.take() {
             let _ = audio.send(None);
         }

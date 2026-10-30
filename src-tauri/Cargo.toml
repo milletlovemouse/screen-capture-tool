@@ -1,6 +1,6 @@
 [package]
 name = "screen-capture-tool"
-version = "0.4.6"
+version = "0.4.7"
 description = "A lightweight desktop screenshot tool"
 edition = "2021"
 
@@ -53,6 +53,10 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+# 开发模式也需要实时转换数百万像素；保留调试信息和断言，仅优化应用代码。
+[profile.dev.package.screen-capture-tool]
+opt-level = 2
 
 [profile.release]
 codegen-units = 1

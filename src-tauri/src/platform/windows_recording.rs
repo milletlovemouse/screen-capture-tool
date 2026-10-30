@@ -5,6 +5,8 @@ pub(super) mod encoder;
 mod output;
 #[path = "windows_recording_pixels.rs"]
 mod pixels;
+#[path = "windows_recording_schedule.rs"]
+mod schedule;
 use encoder::VideoEncoder;
 use std::{
     path::Path,
@@ -45,6 +47,7 @@ pub struct Recorder {
     pixels: Vec<u8>,
     clock: Clock,
     last_frame: Option<Instant>,
+    schedule: schedule::FrameSchedule,
 }
 
 impl GraphicsCaptureApiHandler for Recorder {
@@ -79,6 +82,7 @@ impl GraphicsCaptureApiHandler for Recorder {
             pixels: vec![0; w as usize * h as usize * 3 / 2],
             clock,
             last_frame: None,
+            schedule: schedule::FrameSchedule::default(),
         })
     }
 
@@ -93,10 +97,7 @@ impl GraphicsCaptureApiHandler for Recorder {
             audio.stop()?;
             return Err("音频采集意外停止".into());
         }
-        if self
-            .last_frame
-            .is_some_and(|last| last.elapsed() < Duration::from_millis(33))
-        {
+        if !self.schedule.accept(Instant::now()) {
             return Ok(());
         }
         let (x, y, w, h) = self.rect;
@@ -145,7 +146,7 @@ impl Recorder {
         let result = if has_frame {
             self.clock.elapsed().and_then(|timestamp| {
                 encoder
-                    .send_frame_buffer(&self.pixels, timestamp)
+                    .send_final_frame(&self.pixels, timestamp)
                     .map_err(|e| format!("写入最后一帧失败：{e}"))
             })
         } else {
@@ -210,7 +211,7 @@ impl Recording {
         Ok(recording)
     }
 
-    /// 首帧被转码管线消费且未检测到异步失败后才报告启动成功。
+    /// 首帧交付给转码管线且未检测到异步失败后才报告启动成功。
     fn wait_for_start(&mut self) -> Result<(), String> {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
