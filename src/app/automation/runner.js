@@ -5,6 +5,7 @@ import { $, setStatus, sleep } from "../../core/dom.js";
 import { doCapture, notifySavedFile } from "../capture.js";
 import { regionPayload } from "../region.js";
 import { refreshAutomationDesktopMenus } from "../tray.js";
+import { IS_MAC } from "../../shared/platform.js";
 import {
   hideIndicatorForRecording,
   restoreIndicatorAfterRecording,
@@ -35,18 +36,32 @@ import {
 let automationRunSequence = 0;
 
 // 按单调时钟计算截止时间，避免后台定时器延迟累积，并允许快捷键中断。
-async function cancellableAutomationWait(ms, run) {
-  const deadline = performance.now() + Math.max(0, Number(ms) || 0);
-  while (!run.cancelled) {
-    const remaining = deadline - performance.now();
-    if (remaining <= 0) break;
-    await sleep(Math.min(50, remaining));
+async function cancellableAutomationWait(ms, run, recording = false) {
+  if (run.cancelled || (recording && run.recordingCompleted)) return;
+  const durationMs = Math.ceil(Math.max(0, Number(ms) || 0));
+  if (!durationMs) return;
+  if (!IS_MAC) {
+    const deadline = performance.now() + durationMs;
+    while (!run.cancelled && !(recording && run.recordingCompleted)) {
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) break;
+      await sleep(Math.min(50, remaining));
+    }
+    return;
+  }
+  try {
+    await invoke("wait_automation_operation", { durationMs, runId: run.runId });
+  } catch (error) {
+    if (!run.cancelled) throw error;
   }
 }
 
 // 停止自动化占用的录屏资源，统一处理状态与选区恢复。
 async function stopAutomationRecording(run) {
-  if (!run.recording) return;
+  if (!run.recording) {
+    await run.recordingCompletion;
+    return;
+  }
   stopRecordingMonitor();
   run.recording = false;
   try {
@@ -149,28 +164,35 @@ export async function runAutomation(script) {
     }
     setStatus(`自动化失败：${e}`, "err");
   } finally {
-    if (run.recording) {
-      try {
-        await stopAutomationRecording(run);
-      } catch {
-        /* 忽略清理录制错误 */
-      }
-    }
-    if (automationRecordingRun === run) {
-      await restoreIndicatorAfterRecording();
-      setAutomationRecordingRun(null);
-      updateRecUI();
-    }
-    automationRuns.delete(script.id);
-    void refreshAutomationDesktopMenus();
     try {
-      if (run.nativeReady) {
-        await invoke("end_automation_operation", { runId: run.runId }).catch(() => {});
+      if (run.recording) {
+        try {
+          await stopAutomationRecording(run);
+        } catch {
+          /* 忽略清理录制错误 */
+        }
       }
-      await releaseAutomationSafety();
+      if (automationRecordingRun === run) {
+        await restoreIndicatorAfterRecording();
+        setAutomationRecordingRun(null);
+        updateRecUI();
+      }
     } finally {
-      finishRun();
-      updateAutomationRunUI(script.id);
+      automationRuns.delete(script.id);
+      void refreshAutomationDesktopMenus();
+      try {
+        await releaseAutomationSafety();
+      } finally {
+        // 选区、快捷键或状态窗清理失败时，也必须释放原生运行。
+        try {
+          if (run.nativeReady) {
+            await invoke("end_automation_operation", { runId: run.runId }).catch(() => {});
+          }
+        } finally {
+          finishRun();
+          updateAutomationRunUI(script.id);
+        }
+      }
     }
   }
 }
@@ -195,6 +217,8 @@ async function runStep(step, run) {
     if (!dir) throw new Error("请先在设置里选择保存目录");
     if (recordingActive || recordingBusy || automationRecordingRun) throw new Error("当前已有录屏正在进行");
     setAutomationRecordingRun(run);
+    run.recordingCompleted = false;
+    run.recordingCompletion = null;
     await hideIndicatorForRecording();
     if (run.cancelled) return;
     try {
@@ -209,6 +233,7 @@ async function runStep(step, run) {
         dir,
         prefix: $("prefix").value || "recording",
         runId: run.runId,
+        durationMs: Math.round(Math.max(0, Number(step.duration) || 0) * 1000),
       });
     } catch (error) {
       await restoreIndicatorAfterRecording();
@@ -220,9 +245,11 @@ async function runStep(step, run) {
     startRecordingMonitor();
     updateRecUI();
     try {
+      // 原生层已独立限时；前端等待仅负责推进步骤、响应取消和领取保存结果。
       await cancellableAutomationWait(
         Math.max(0, Number(step.duration) || 0) * 1000,
-        run
+        run,
+        true
       );
     } finally {
       await stopAutomationRecording(run);

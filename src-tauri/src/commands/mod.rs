@@ -6,6 +6,7 @@ pub mod files;
 pub mod input;
 pub mod permissions;
 pub mod recording;
+mod recording_deadline;
 pub mod window_level;
 
 /// 前端同步的托盘自动化脚本及运行状态。

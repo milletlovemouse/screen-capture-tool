@@ -1,9 +1,11 @@
 //! 录屏状态与命令：平台录屏任务的启动、停止与清理。
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use crate::commands::automation_cancel::AutomationState;
 use crate::commands::files::{sanitize_file_stem, unique_path};
+use crate::commands::recording_deadline::DeadlineRecording;
 #[cfg(target_os = "macos")]
 use crate::platform::macos_ffi::CGPreflightScreenCaptureAccess;
 #[cfg(target_os = "macos")]
@@ -13,6 +15,7 @@ use crate::platform::windows_recording;
 use crate::screen::{capture_coordinates, pick_monitor};
 
 pub enum RecordingProcess {
+    Timed(DeadlineRecording),
     #[cfg(target_os = "macos")]
     Mac(macos_recording::Recording, String),
     #[cfg(target_os = "windows")]
@@ -37,6 +40,7 @@ impl Drop for RecState {
 /// 停止平台任务并将原生采集或封装错误传给调用方。
 pub fn stop_recording_process(process: RecordingProcess) -> Result<String, String> {
     match process {
+        RecordingProcess::Timed(recording) => recording.stop(),
         #[cfg(target_os = "macos")]
         RecordingProcess::Mac(recording, path) => {
             recording.stop()?;
@@ -53,12 +57,24 @@ pub fn stop_recording_process(process: RecordingProcess) -> Result<String, Strin
 /// 检查平台任务是否终止；查询不消费任务，保留错误供显式收尾。
 fn recording_finished(process: &RecordingProcess) -> bool {
     match process {
+        RecordingProcess::Timed(recording) => recording.is_finished(),
         #[cfg(target_os = "macos")]
         RecordingProcess::Mac(recording, _) => recording.is_finished(),
         #[cfg(target_os = "windows")]
         RecordingProcess::Windows(recording, _) => recording.is_finished(),
     }
 }
+
+/// 自动录制移交独占线程计时，停止时不再依赖 WebView 回调或状态查询锁。
+fn with_deadline(process: RecordingProcess, duration: Option<Duration>) -> RecordingProcess {
+    match duration {
+        Some(duration) => RecordingProcess::Timed(DeadlineRecording::start(duration, move || {
+            stop_recording_process(process)
+        })),
+        None => process,
+    }
+}
+
 /// 录制预设区域或主屏：macOS 保存 MOV，Windows 原生编码为 MP4。
 // 保留既有平铺 IPC 参数；两个 State 参数由 Tauri 注入，不改变调用格式。
 #[allow(clippy::too_many_arguments)]
@@ -73,12 +89,24 @@ pub fn start_recording(
     audio_source_id: Option<String>,
     audio_enabled: Option<bool>,
     hardware_encoding: Option<bool>,
+    duration_ms: Option<u64>,
     state: tauri::State<RecState>,
     run_id: Option<String>,
     automation_state: tauri::State<AutomationState>,
 ) -> Result<String, String> {
     let operation = automation_state.operation(run_id.as_deref())?;
     operation.check()?;
+    // 验证单调时钟可表示该截止时间；未传时长的手动录制保持原有行为。
+    let duration = duration_ms
+        .map(|ms| {
+            let duration = Duration::from_millis(ms);
+            if Instant::now().checked_add(duration).is_none() {
+                Err("自动录制时长超出支持范围".to_string())
+            } else {
+                Ok(duration)
+            }
+        })
+        .transpose()?;
     let audio_source_id = audio_source_id.as_deref().unwrap_or("system");
     let audio_enabled = audio_enabled.unwrap_or(false);
     // 编码策略仅供 Windows 使用；旧调用未传值时默认允许硬件加速。
@@ -129,7 +157,7 @@ pub fn start_recording(
             let _ = stop_recording_process(process);
             return Err(error);
         }
-        *guard = Some(process);
+        *guard = Some(with_deadline(process, duration));
         Ok(path_str)
     }
     #[cfg(target_os = "windows")]
@@ -149,7 +177,7 @@ pub fn start_recording(
             let _ = stop_recording_process(process);
             return Err(error);
         }
-        *guard = Some(process);
+        *guard = Some(with_deadline(process, duration));
         Ok(path_str)
     }
 }

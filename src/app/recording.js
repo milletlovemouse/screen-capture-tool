@@ -9,6 +9,7 @@ import {
   automationRecordingRun,
   recordingActive,
   recordingBusy,
+  setAutomationRecordingRun,
   setRecordingActive,
   setRecordingBusy,
 } from "../core/state.js";
@@ -29,23 +30,30 @@ export function startRecordingMonitor() {
         if (active === false && !recordingBusy) {
           setRecordingBusy(true);
           const run = automationRecordingRun;
+          let finishRecording;
           if (run) {
             run.recording = false;
-            run.cancelled = true;
+            run.recordingCompleted = true;
+            run.recordingCompletion = new Promise((resolve) => { finishRecording = resolve; });
           }
           setRecordingActive(false);
           try {
-            // 原生异常退出仍需收尾，取回原始错误并清理失败输出。
+            // 自动到期或异常结束均领取原生结果，失败时才取消后续步骤。
             try {
-              await invoke("stop_recording");
+              const path = await invoke("stop_recording");
+              if (run) run.lastSavedPath = path;
             } catch (error) {
+              if (run?.requestCancel) run.requestCancel();
+              else if (run) run.cancelled = true;
               const button = $("record-toggle");
               if (button) button.title = String(error);
             }
             await restoreIndicatorAfterRecording();
           } finally {
+            if (automationRecordingRun === run && run) setAutomationRecordingRun(null);
             setRecordingBusy(false);
             updateRecUI();
+            finishRecording?.();
           }
           return;
         }

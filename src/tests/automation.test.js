@@ -287,33 +287,135 @@ test("stopping during timed recording finalizes exactly once", async () => {
   await execution;
   assert.deepEqual(h.calls.map((call) => call.command), ["start_recording", "stop_recording"]);
   assert.equal(h.evaluate("automationRecordingRun"), null);
+  assert.equal(h.calls[0].args.durationMs, 60000);
 });
 
-test("28-second recordings do not accumulate delayed timer callbacks", async () => {
+test("28-second recordings use native duration and do not depend on WebView timers", async () => {
   const h = harness();
-  // 模拟后台每次 50ms 等待实际耗时 146ms，保持录屏轮询使用真实定时器。
   h.evaluate(`
-    let elapsed = 0;
-    let recordedDuration;
-    const realSetTimeout = setTimeout;
     const realInvoke = invoke;
-    performance = { now: () => elapsed };
+    const realSetTimeout = setTimeout;
+    let nativeWaitDuration;
     setTimeout = (callback, ms) => {
-      if (ms > 50) return realSetTimeout(callback, ms);
-      elapsed += ms + 96;
-      return Promise.resolve().then(callback);
+      if (ms <= 50) throw new Error("unexpected WebView timer");
+      return realSetTimeout(callback, ms);
     };
     invoke = async (command, args) => {
-      if (command === "start_recording") elapsed = 0;
-      if (command === "stop_recording") recordedDuration = elapsed;
+      if (command === "wait_automation_operation") nativeWaitDuration = args.durationMs;
       return realInvoke(command, args);
     };
   `);
   await h.run({ runMode: "once", steps: [{ type: "record", duration: 28 }] });
-  const duration = h.evaluate("recordedDuration");
-  assert.ok(duration >= 28000 && duration <= 28146, `actual duration: ${duration}ms`);
+  assert.equal(h.evaluate("nativeWaitDuration"), 28000);
+  assert.equal(h.calls[0].args.durationMs, 28000);
   assert.deepEqual(h.calls.map((call) => call.command), ["start_recording", "stop_recording"]);
   assert.equal(h.evaluate("automationRecordingRun"), null);
+});
+
+test("native completion waits for saving and continues subsequent rounds without duplicate stops", async () => {
+  const h = harness();
+  h.evaluate(`
+    const realInvoke = invoke;
+    const realTimer = setTimeout;
+    let saving = false;
+    setTimeout = (callback, ms) => realTimer(callback, ms === 500 ? 1 : ms);
+    invoke = async (command, args) => {
+      if (command === "is_recording") return false;
+      if (command === "stop_recording") {
+        saving = true;
+        await new Promise((resolve) => realTimer(resolve, 30));
+        saving = false;
+      }
+      if (command === "simulate_click" && saving) throw new Error("录制尚未保存");
+      return realInvoke(command, args);
+    };
+  `);
+  await h.run({ runMode: "count", runCount: 2, steps: [
+    { type: "record", duration: 0.01 }, { type: "click", x: 1, y: 1 },
+  ] });
+  assert.deepEqual(h.calls.map((call) => call.command), [
+    "start_recording", "stop_recording", "simulate_click",
+    "start_recording", "stop_recording", "simulate_click",
+  ]);
+  assert.equal(h.evaluate("automationRecordingRun"), null);
+  assert.equal(h.evaluate("recordingActive"), false);
+});
+
+test("one native operation covers all eight steps across 24 rounds", async () => {
+  const h = harness();
+  h.evaluate(`
+    const realInvoke = invoke;
+    const nativeOperations = [];
+    invoke = async (command, args) => {
+      if (args?.runId) nativeOperations.push({ command, args });
+      return realInvoke(command, args);
+    };
+  `);
+  await h.run({ runMode: "count", runCount: 24, steps: [
+    { type: "click", x: 1, y: 1 }, { type: "wait", ms: 0 },
+    { type: "click", x: 2, y: 2 }, { type: "wait", ms: 0 },
+    { type: "record", duration: 0 },
+    { type: "click", x: 3, y: 3 }, { type: "wait", ms: 0 },
+    { type: "click", x: 4, y: 4 },
+  ] });
+  const operations = JSON.parse(h.evaluate("JSON.stringify(nativeOperations)"));
+  const lifecycle = operations.filter(({ command }) => [
+    "begin_automation_operation", "end_automation_operation",
+  ].includes(command));
+  assert.deepEqual(lifecycle.map(({ command }) => command), [
+    "begin_automation_operation", "end_automation_operation",
+  ]);
+  assert.equal(operations[0].command, "begin_automation_operation");
+  assert.equal(operations.at(-1).command, "end_automation_operation");
+  assert.equal(lifecycle[0].args.runId, lifecycle[1].args.runId);
+  assert.equal(h.calls.filter(({ command }) => command === "start_recording").length, 24);
+  assert.equal(h.calls.filter(({ command }) => command === "stop_recording").length, 24);
+  assert.equal(h.calls.filter(({ command }) => command === "simulate_click").length, 96);
+});
+
+test("a failed step still ends the native operation", async () => {
+  const h = harness();
+  h.evaluate(`
+    const realInvoke = invoke;
+    const lifecycle = [];
+    invoke = async (command, args) => {
+      if (command.endsWith("_automation_operation")) lifecycle.push(command);
+      if (command === "simulate_click") throw new Error("输入失败");
+      return realInvoke(command, args);
+    };
+  `);
+  await h.run({ steps: [{ type: "click", x: 1, y: 1 }] });
+  assert.deepEqual(JSON.parse(h.evaluate("JSON.stringify(lifecycle)")), [
+    "begin_automation_operation", "end_automation_operation",
+  ]);
+  assert.equal(h.evaluate("automationRuns.size"), 0);
+});
+
+test("native operation ends after cleanup, including cleanup failure", async () => {
+  for (const failCleanup of [false, true]) {
+    const h = harness();
+    h.evaluate(`
+      const lifecycle = [];
+      const realInvoke = invoke;
+      const realRelease = releaseAutomationSafety;
+      invoke = async (command, args) => {
+        if (command.endsWith("_automation_operation")) lifecycle.push(command);
+        return realInvoke(command, args);
+      };
+      releaseAutomationSafety = async () => {
+        await realRelease();
+        lifecycle.push("cleanup");
+        if (${failCleanup}) throw new Error("cleanup failed");
+      };
+    `);
+    const execution = h.run({ steps: [{ type: "wait", ms: 0 }] });
+    if (failCleanup) await assert.rejects(execution, /cleanup failed/);
+    else await execution;
+    assert.deepEqual(JSON.parse(h.evaluate("JSON.stringify(lifecycle)")), [
+      "begin_automation_operation", "cleanup", "end_automation_operation",
+    ]);
+    assert.equal(h.evaluate("automationRuns.size"), 0);
+  }
 });
 
 test("empty scripts and invalid counts fail before executing any action", async () => {

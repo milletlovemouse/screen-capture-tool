@@ -54,6 +54,7 @@ const source = (
 
 export function harness(isMac = true) {
   const calls = [];
+  const nativeRuns = new Map();
   const elements = new Map();
   const storage = new Map();
   const shortcuts = new Map();
@@ -176,7 +177,31 @@ export function harness(isMac = true) {
       },
     },
     invoke: async (command, args) => {
-      if (["begin_automation_operation", "cancel_automation_operation", "end_automation_operation"].includes(command)) return;
+      if (command === "begin_automation_operation") {
+        nativeRuns.set(args.runId, { cancelled: false });
+        return;
+      }
+      if (command === "cancel_automation_operation") {
+        const token = nativeRuns.get(args.runId);
+        if (token) token.cancelled = true;
+        return;
+      }
+      if (command === "end_automation_operation") {
+        const token = nativeRuns.get(args.runId);
+        if (token) token.cancelled = true;
+        nativeRuns.delete(args.runId);
+        return;
+      }
+      if (command === "wait_automation_operation") {
+        const token = nativeRuns.get(args.runId);
+        if (!token) throw new Error("自动化运行不存在或已结束");
+        const deadline = performance.now() + args.durationMs;
+        while (!token.cancelled && performance.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        if (token.cancelled) throw new Error("自动化操作已取消");
+        return;
+      }
       if (command === "is_recording") return true;
       if (command === "primary_size") return [1440, 900];
       if (command === "list_audio_sources") return [{ id: "system", name: "系统声音", kind: "内置" }];

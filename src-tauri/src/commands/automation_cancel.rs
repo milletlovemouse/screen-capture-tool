@@ -2,12 +2,20 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 pub const CANCELLED: &str = "自动化操作已取消";
 
 /// 每个应用持有独立注册表；已取得的 token 在 end 后仍保持取消状态。
 #[derive(Default)]
-pub struct AutomationState(Mutex<HashMap<String, Operation>>);
+pub struct AutomationState(Mutex<HashMap<String, AutomationRun>>);
+
+/// 运行条目持有后台活动，结束某个脚本不会释放其他脚本的保护。
+struct AutomationRun {
+    operation: Operation,
+    #[cfg(target_os = "macos")]
+    _activity: crate::platform::macos_activity::AutomationActivity,
+}
 
 /// None 表示旧调用不参与取消；互斥锁使取消与单次副作用具有明确顺序。
 #[derive(Clone, Default)]
@@ -20,6 +28,21 @@ struct Token {
 }
 
 impl Operation {
+    /// 按原生单调时钟等待，最多每 50ms 检查取消，不依赖 WebView 定时器。
+    fn wait(&self, duration_ms: u64) -> Result<(), String> {
+        let deadline = Instant::now()
+            .checked_add(Duration::from_millis(duration_ms))
+            .ok_or("自动化等待时间超出支持范围")?;
+        loop {
+            self.check()?;
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Ok(());
+            }
+            std::thread::sleep(remaining.min(Duration::from_millis(50)));
+        }
+    }
+
     /// 测试无需系统 API 即可观察取消请求，且不等待当前 stroke 释放。
     #[cfg(test)]
     pub(super) fn is_cancelled(&self) -> bool {
@@ -69,6 +92,12 @@ impl Operation {
 }
 
 impl AutomationState {
+    /// 查询注册表的实际运行状态，包含正在取消但尚未完成清理的脚本。
+    #[cfg(any(target_os = "macos", test))]
+    fn has_runs(&self) -> Result<bool, String> {
+        Ok(!self.0.lock().map_err(|_| "自动化注册表不可用")?.is_empty())
+    }
+
     /// 创建全新运行，拒绝重复 begin，防止意外复活已取消的 token。
     pub(super) fn begin(&self, run_id: String) -> Result<(), String> {
         if run_id.trim().is_empty() {
@@ -78,7 +107,14 @@ impl AutomationState {
         if runs.contains_key(&run_id) {
             return Err("自动化 runId 已存在，请先 end 或使用新的 ID".into());
         }
-        runs.insert(run_id, Operation(Some(Arc::new(Token::default()))));
+        runs.insert(
+            run_id,
+            AutomationRun {
+                operation: Operation(Some(Arc::new(Token::default()))),
+                #[cfg(target_os = "macos")]
+                _activity: crate::platform::macos_activity::AutomationActivity::begin(),
+            },
+        );
         Ok(())
     }
 
@@ -91,7 +127,7 @@ impl AutomationState {
                 .lock()
                 .map_err(|_| "自动化注册表不可用")?
                 .get(id)
-                .cloned()
+                .map(|run| run.operation.clone())
                 .ok_or_else(|| "自动化运行不存在或已结束".into()),
         }
     }
@@ -103,7 +139,7 @@ impl AutomationState {
             .lock()
             .map_err(|_| "自动化注册表不可用")?
             .get(run_id)
-            .cloned();
+            .map(|run| run.operation.clone());
         if let Some(operation) = operation {
             operation.cancel()?;
         }
@@ -112,29 +148,64 @@ impl AutomationState {
 
     /// 移除运行并取消仍在执行的旧 token；后续同名 begin 不影响旧任务。
     pub(super) fn end(&self, run_id: &str) -> Result<(), String> {
-        let operation = {
+        let run = {
             let mut runs = self.0.lock().map_err(|_| "自动化注册表不可用")?;
-            let operation = runs.remove(run_id);
+            let run = runs.remove(run_id);
             // 从注册表消失前发布取消，避免其他调用看到不存在时旧任务仍可开始。
-            if let Some(Operation(Some(token))) = &operation {
+            if let Some(token) = run.as_ref().and_then(|run| run.operation.0.as_ref()) {
                 token.cancelled.store(true, Ordering::SeqCst);
             }
-            operation
+            run
         };
-        if let Some(operation) = operation {
-            operation.cancel()?;
+        if let Some(run) = run {
+            run.operation.cancel()?;
         }
         Ok(())
     }
 }
 
+/// 在 WebView 线程读取最新任务状态，避免并行 begin/end 的旧结果覆盖新策略。
+#[cfg(target_os = "macos")]
+fn sync_background_policy(app: &tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    let window = app
+        .get_webview_window("main")
+        .ok_or("主窗口不存在，无法更新后台策略")?;
+    let policy_app = app.clone();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    window
+        .with_webview(move |webview| {
+            let result = policy_app
+                .state::<AutomationState>()
+                .has_runs()
+                .and_then(|active| {
+                    crate::platform::macos_webview::set_background_task_active(&webview, active)
+                });
+            let _ = sender.send(result);
+        })
+        .map_err(|error| error.to_string())?;
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .map_err(|error| format!("更新后台运行策略失败：{error}"))?
+}
+
 /// 注册一次自动化运行，调用方应使用每次运行唯一的 runId。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn begin_automation_operation(
     run_id: String,
     state: tauri::State<'_, AutomationState>,
+    #[allow(unused_variables)] app: tauri::AppHandle,
 ) -> Result<(), String> {
-    state.begin(run_id)
+    state.begin(run_id.clone())?;
+    #[cfg(target_os = "macos")]
+    if let Err(error) = sync_background_policy(&app) {
+        // 开始失败时前端尚未取得运行所有权，必须在这里回收并恢复策略。
+        let _ = state.end(&run_id);
+        let _ = sync_background_policy(&app);
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// 协作取消运行；不会强杀系统截图或删除已完成的结果。
@@ -146,18 +217,88 @@ pub fn cancel_automation_operation(
     state.cancel(&run_id)
 }
 
+/// Windows 步骤和轮次等待使用阻塞任务池，前端通过 IPC 完成通知继续执行。
+#[tauri::command]
+pub async fn wait_automation_operation(
+    run_id: String,
+    duration_ms: u64,
+    state: tauri::State<'_, AutomationState>,
+) -> Result<(), String> {
+    let operation = state.operation(Some(&run_id))?;
+    tauri::async_runtime::spawn_blocking(move || operation.wait(duration_ms))
+        .await
+        .map_err(|error| format!("自动化等待任务异常：{error}"))?
+}
+
 /// 幂等结束运行并释放注册表条目，旧任务仍保持取消。
 #[tauri::command(async)]
 pub fn end_automation_operation(
     run_id: String,
     state: tauri::State<'_, AutomationState>,
+    #[allow(unused_variables)] app: tauri::AppHandle,
 ) -> Result<(), String> {
-    state.end(&run_id)
+    let result = state.end(&run_id);
+    #[cfg(target_os = "macos")]
+    {
+        // 即使取消清理返回错误，也要按剩余任务状态尝试恢复后台策略。
+        let policy_result = sync_background_policy(&app);
+        result.and(policy_result)
+    }
+    #[cfg(not(target_os = "macos"))]
+    result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 等待可被其他线程及时取消，不必等原始截止时间。
+    #[test]
+    fn native_wait_responds_to_cancellation() {
+        let state = AutomationState::default();
+        state.begin("wait".into()).unwrap();
+        let operation = state.operation(Some("wait")).unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            sender.send(operation.wait(60_000)).unwrap();
+        });
+        state.cancel("wait").unwrap();
+        assert_eq!(
+            receiver.recv_timeout(Duration::from_secs(2)).unwrap(),
+            Err(CANCELLED.into())
+        );
+        worker.join().unwrap();
+        state.end("wait").unwrap();
+    }
+
+    /// 零等待仍检查运行权限，已结束的 token 不能继续执行。
+    #[test]
+    fn native_wait_checks_active_token() {
+        let state = AutomationState::default();
+        state.begin("wait".into()).unwrap();
+        let operation = state.operation(Some("wait")).unwrap();
+        operation.wait(0).unwrap();
+        state.end("wait").unwrap();
+        assert_eq!(operation.wait(0).unwrap_err(), CANCELLED);
+    }
+
+    /// 取消和重复结束不能提前恢复默认策略；最后一个注册任务结束才变为空闲。
+    #[test]
+    fn background_policy_tracks_all_registered_runs() {
+        let state = AutomationState::default();
+        assert!(!state.has_runs().unwrap());
+        state.begin("a".into()).unwrap();
+        state.begin("b".into()).unwrap();
+        state.cancel("a").unwrap();
+        assert!(state.has_runs().unwrap());
+        state.end("a").unwrap();
+        state.end("a").unwrap();
+        assert!(state.has_runs().unwrap());
+        assert!(state.begin("b".into()).is_err());
+        assert!(state.has_runs().unwrap());
+        state.end("b").unwrap();
+        assert!(!state.has_runs().unwrap());
+    }
 
     /// 覆盖旧调用、未知 ID、重复 begin、取消幂等与不同运行隔离。
     #[test]

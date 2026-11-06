@@ -1,5 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "backgroundThrottling": "disabled"
+      }
+    ]
+  },
   "bundle": {
     "targets": ["app", "dmg"],
     "resources": ["zh-Hans.lproj"],

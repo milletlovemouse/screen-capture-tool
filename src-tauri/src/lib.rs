@@ -41,6 +41,7 @@ pub fn run() {
             commands::update_tray_menu,
             commands::automation_cancel::begin_automation_operation,
             commands::automation_cancel::cancel_automation_operation,
+            commands::automation_cancel::wait_automation_operation,
             commands::automation_cancel::end_automation_operation,
             commands::capture::capture_region,
             commands::capture::capture_around,

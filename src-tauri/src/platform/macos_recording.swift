@@ -222,7 +222,8 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
 
     /// 以首视频为时间基准，丢弃此前音频并按采集模式判断就绪。
     func append(_ sample: CMSampleBuffer, isAudio: Bool) {
-        guard !stopping, error == nil, CMSampleBufferDataIsReady(sample) else { return }
+        // 到期请求停止后立即拒绝新样本，避免设备收尾期间继续延长媒体时间轴。
+        guard !isStopRequested(), !stopping, error == nil, CMSampleBufferDataIsReady(sample) else { return }
         do {
             try checkHealth()
             if isAudio {
@@ -423,7 +424,7 @@ final class Recorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + 0.02, repeating: 0.02)
         timer.setEventHandler { [weak self] in
-            guard let self = self, !self.stopping, self.error == nil else { return }
+            guard let self = self, !self.isStopRequested(), !self.stopping, self.error == nil else { return }
             let elapsed = CMTimeGetSeconds(CMTimeSubtract(CMClockGetTime(CMClockGetHostTimeClock()), self.startHostTime))
             do {
                 try self.fillSilence(until: max(0, Int64((elapsed - 0.25) * 48000)),
