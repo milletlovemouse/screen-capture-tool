@@ -1,6 +1,6 @@
 //! 文件名与路径处理，以及在系统中打开文件、链接。
 use std::fs::OpenOptions;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 /// 清理文件名前缀，兼容 macOS 与 Windows 保留字符和设备名。
@@ -190,6 +190,31 @@ pub fn open_external_url(url: String) -> Result<(), String> {
         let _ = url;
         Err("当前平台暂不支持打开链接".into())
     }
+}
+
+/// 写入用户通过保存对话框选择的脚本分享文件。
+#[tauri::command]
+pub fn write_automation_script(path: String, content: String) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    if !path.is_absolute() {
+        return Err("脚本保存路径必须为绝对路径".into());
+    }
+    std::fs::write(path, content).map_err(|error| format!("写入脚本文件失败：{error}"))
+}
+
+/// 读取用户通过打开对话框选择的脚本分享文件。
+#[tauri::command]
+pub fn read_automation_script(path: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    if !path.is_absolute() {
+        return Err("脚本文件路径必须为绝对路径".into());
+    }
+    let mut file =
+        std::fs::File::open(path).map_err(|error| format!("读取脚本文件失败：{error}"))?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)
+        .map_err(|error| format!("读取脚本文件失败：{error}"))?;
+    Ok(content)
 }
 #[cfg(test)]
 mod tests {

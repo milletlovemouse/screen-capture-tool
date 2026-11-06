@@ -146,6 +146,8 @@ test("installation locks cancellation only after the download completes", async 
   const installing = h.evaluate("installAvailableUpdate()");
   await flushUpdateCheck();
   assert.equal(h.elements.get("update-cancel").disabled, true);
+  assert.equal(h.elements.get("update-confirm").hidden, true);
+  assert.equal(h.elements.get("update-skip").disabled, false);
   h.evaluate("hideUpdatePrompt()");
   assert.equal(h.elements.get("update-prompt").hidden, false);
   h.evaluate("finishInstall()");

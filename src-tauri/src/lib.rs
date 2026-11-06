@@ -54,6 +54,8 @@ pub fn run() {
             commands::window_level::raise_capture_auxiliary_window,
             commands::files::reveal_saved_file,
             commands::files::open_external_url,
+            commands::files::write_automation_script,
+            commands::files::read_automation_script,
             commands::permissions::check_permissions,
             commands::permissions::request_screen_permission,
             commands::permissions::request_accessibility_permission,

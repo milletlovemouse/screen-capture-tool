@@ -4,6 +4,12 @@
     "windows": [
       {
         "label": "main",
+        "title": "",
+        "width": 660,
+        "height": 520,
+        "resizable": true,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
         "backgroundThrottling": "disabled"
       }
     ]

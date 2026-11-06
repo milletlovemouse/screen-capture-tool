@@ -15,10 +15,10 @@ let updateReady = false;
 
 // 下载期间保留取消入口，只有安装阶段禁用关闭。
 function setUpdateButtonsDisabled(disabled) {
-  for (const id of ["update-skip", "update-confirm"]) {
-    const button = $(id);
-    if (button) button.disabled = disabled;
-  }
+  const skip = $("update-skip");
+  if (skip) skip.disabled = false;
+  const confirm = $("update-confirm");
+  if (confirm) confirm.disabled = disabled;
   const cancel = $("update-cancel");
   if (cancel) cancel.disabled = updateInstalling;
   const background = $("update-background");
@@ -165,7 +165,10 @@ async function installAvailableUpdate() {
     installButton.disabled = false;
     installButton.textContent = "查看下载进度";
   }
-  if (confirmButton) confirmButton.textContent = "正在更新…";
+  if (confirmButton) {
+    confirmButton.hidden = true;
+    confirmButton.textContent = "正在更新…";
+  }
   setUpdateButtonsDisabled(true);
   if (progress) progress.hidden = false;
   let total = 0;
@@ -222,6 +225,7 @@ async function installAvailableUpdate() {
       installButton.textContent = updateReady ? "安装并重启" : "下载更新";
     }
     if (confirmButton) confirmButton.textContent = updateReady ? "安装并重启" : "更新";
+    if (confirmButton) confirmButton.hidden = false;
     setUpdateButtonsDisabled(false);
   }
 }

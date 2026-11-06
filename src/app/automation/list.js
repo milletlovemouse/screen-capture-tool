@@ -1,8 +1,15 @@
 import { $, setStatus } from "../../core/dom.js";
+import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { saveSettings } from "../../core/settings.js";
 import { showHomeShortcut } from "../shortcuts.js";
 import { refreshAutomationDesktopMenus } from "../tray.js";
-import { saveAutomationRunSettings, updateAutomationRunUI } from "./model.js";
+import {
+  createAutomationShare,
+  importAutomationShare,
+  saveAutomationRunSettings,
+  updateAutomationRunUI,
+} from "./model.js";
 import { stopAutomation, toggleAutomation } from "./runner.js";
 import { unregisterAutomationShortcuts } from "./shortcuts.js";
 import {
@@ -22,6 +29,50 @@ import {
 } from "../../core/state.js";
 
 const automationScriptDeletions = new Set();
+
+// 导出脚本为独立分享文件，不包含本机快捷键和脚本 ID。
+export async function exportAutomationScript(id) {
+  const script = automationScripts.find((item) => item.id === id);
+  if (!script) return;
+  try {
+    const path = await save({
+      defaultPath: `${script.name || "未命名脚本"}.sct-script.json`,
+      filters: [{ name: "自动化脚本", extensions: ["sct-script.json", "json"] }],
+    });
+    if (!path) return;
+    await invoke("write_automation_script", {
+      path,
+      content: JSON.stringify(createAutomationShare(script), null, 2),
+    });
+    setStatus(`脚本已导出：${script.name}`, "ok");
+  } catch (error) {
+    setStatus(`脚本导出失败：${error}`, "err");
+  }
+}
+
+// 从分享文件导入脚本，重名时生成副本且不注册原快捷键。
+export async function importAutomationScript() {
+  const selected = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: "自动化脚本", extensions: ["sct-script.json", "json"] }],
+  });
+  if (typeof selected !== "string") return;
+  try {
+    const content = await invoke("read_automation_script", { path: selected });
+    const script = importAutomationShare(
+      JSON.parse(content),
+      automationScripts.map((item) => item.name)
+    );
+    automationScripts.push(script);
+    saveSettings();
+    renderAutomationList();
+    renderHomeAutomations();
+    setStatus(`已导入脚本：${script.name}`, "ok");
+  } catch (error) {
+    setStatus(`脚本导入失败：${error}`, "err");
+  }
+}
 
 // 删除与快捷键保存共用队列，注销成功后才移除配置；失败允许重试。
 export async function deleteAutomationScript(id) {
@@ -154,7 +205,7 @@ export function renderHomeAutomations() {
   });
 }
 
-// 自动化页列表：展开编辑、复制与删除
+// 自动化页列表：展开编辑、复制、导出与删除
 export function renderAutomationList() {
   const list = $("automation-list");
   if (!list) return;
@@ -199,6 +250,14 @@ export function renderAutomationList() {
       event.stopPropagation();
       void duplicateAutomationScript(script.id);
     });
+    const exportButton = document.createElement("button");
+    exportButton.type = "button";
+    exportButton.className = "ghost";
+    exportButton.textContent = "导出";
+    exportButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void exportAutomationScript(script.id);
+    });
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "ghost danger";
@@ -207,7 +266,7 @@ export function renderAutomationList() {
       event.stopPropagation();
       void deleteAutomationScript(script.id);
     });
-    actions.append(duplicate, remove);
+    actions.append(duplicate, exportButton, remove);
     const info = document.createElement("div");
     info.className = "automation-list-info";
     const summary = document.createElement("div");

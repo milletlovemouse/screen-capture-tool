@@ -56,6 +56,46 @@ test("duplicateAutomationScript deep-copies, reindexes and clears the shortcut",
   assert.equal(h.evaluate("automationScripts[0].steps[0].keys[0].keycode"), 8);
 });
 
+test("automation sharing removes local identity and imports with a fresh copy", () => {
+  const h = harness();
+  const shared = JSON.parse(h.evaluate(`JSON.stringify(createAutomationShare({
+    id: "local-id",
+    name: "每日截图",
+    shortcut: "CommandOrControl+Alt+S",
+    runMode: "count",
+    runCount: 3,
+    steps: [{ type: "click", x: 10, y: 20 }, { type: "capture" }]
+  }))`));
+  assert.equal(shared.format, "screen-capture-tool-automation");
+  assert.equal(shared.version, 1);
+  assert.equal(shared.script.id, undefined);
+  assert.equal(shared.script.shortcut, "");
+  const imported = JSON.parse(h.evaluate(`JSON.stringify(importAutomationShare(
+    ${JSON.stringify(shared)},
+    ["每日截图"]
+  ))`));
+  assert.notEqual(imported.id, "local-id");
+  assert.equal(imported.name, "每日截图 副本");
+  assert.equal(imported.shortcut, "");
+  assert.deepEqual(imported.steps, shared.script.steps);
+});
+
+test("automation sharing rejects unsupported formats and steps", () => {
+  const h = harness();
+  assert.throws(
+    () => h.evaluate(`importAutomationShare({ format: "other", version: 1, script: {} })`),
+    /分享文件格式不受支持/
+  );
+  assert.throws(
+    () => h.evaluate(`importAutomationShare({
+      format: "screen-capture-tool-automation",
+      version: 1,
+      script: { name: "无效", steps: [{ type: "unknown" }] }
+    })`),
+    /分享文件中的步骤无效/
+  );
+});
+
 test("moveStep reorders steps for drag and keyboard without mutating the source", () => {
   const h = harness();
   const base = JSON.stringify(["a", "b", "c", "d"]);

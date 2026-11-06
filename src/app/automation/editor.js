@@ -9,7 +9,11 @@ import {
   resetStepToType,
   uniqueCopyName,
 } from "./model.js";
-import { renderAutomationList, renderHomeAutomations } from "./list.js";
+import {
+  importAutomationScript,
+  renderAutomationList,
+  renderHomeAutomations,
+} from "./list.js";
 import {
   closeStepTypeMenu,
   renderAutomationSteps,
@@ -198,6 +202,7 @@ export async function saveAutomationEditor() {
 
 export function setupAutomation() {
   $("add-automation").addEventListener("click", () => void addAutomationScript());
+  $("import-automation").addEventListener("click", () => void importAutomationScript());
   $("save-automation").addEventListener("click", saveAutomationEditor);
   $("cancel-automation").addEventListener("click", () => requestCloseEditor());
   $("add-click-step").addEventListener("click", () => addAutomationStep("click"));

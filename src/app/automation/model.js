@@ -62,6 +62,36 @@ export function cloneAutomation(script) {
   return JSON.parse(JSON.stringify(script));
 }
 
+// 生成可分享的脚本数据，移除本机 ID 和快捷键，避免覆盖接收方配置。
+export function createAutomationShare(script) {
+  const shared = cloneAutomation(script);
+  delete shared.id;
+  shared.shortcut = "";
+  return {
+    format: "screen-capture-tool-automation",
+    version: 1,
+    script: shared,
+  };
+}
+
+// 校验并导入分享数据，接收方重新生成 ID，快捷键始终由用户本地配置。
+export function importAutomationShare(value, existingNames = []) {
+  if (!value || value.format !== "screen-capture-tool-automation" ||
+      value.version !== 1 || !value.script || typeof value.script !== "object") {
+    throw new Error("分享文件格式不受支持");
+  }
+  const normalized = normalizeAutomationScripts([value.script])[0];
+  if (!normalized || !normalized.steps.length ||
+      normalized.steps.some((step) => !["click", "keys", "wait", "capture", "record"].includes(step.type))) {
+    throw new Error("分享文件中的步骤无效");
+  }
+  const imported = cloneAutomation(normalized);
+  imported.id = newAutomationId();
+  imported.name = uniqueCopyName(imported.name, existingNames);
+  imported.shortcut = "";
+  return imported;
+}
+
 // 步骤类型及显示名称（顺序即添加/切换菜单顺序）
 export const STEP_TYPES = [
   ["click", "模拟点击"],
