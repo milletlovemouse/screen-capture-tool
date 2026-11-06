@@ -289,6 +289,33 @@ test("stopping during timed recording finalizes exactly once", async () => {
   assert.equal(h.evaluate("automationRecordingRun"), null);
 });
 
+test("28-second recordings do not accumulate delayed timer callbacks", async () => {
+  const h = harness();
+  // 模拟后台每次 50ms 等待实际耗时 146ms，保持录屏轮询使用真实定时器。
+  h.evaluate(`
+    let elapsed = 0;
+    let recordedDuration;
+    const realSetTimeout = setTimeout;
+    const realInvoke = invoke;
+    performance = { now: () => elapsed };
+    setTimeout = (callback, ms) => {
+      if (ms > 50) return realSetTimeout(callback, ms);
+      elapsed += ms + 96;
+      return Promise.resolve().then(callback);
+    };
+    invoke = async (command, args) => {
+      if (command === "start_recording") elapsed = 0;
+      if (command === "stop_recording") recordedDuration = elapsed;
+      return realInvoke(command, args);
+    };
+  `);
+  await h.run({ runMode: "once", steps: [{ type: "record", duration: 28 }] });
+  const duration = h.evaluate("recordedDuration");
+  assert.ok(duration >= 28000 && duration <= 28146, `actual duration: ${duration}ms`);
+  assert.deepEqual(h.calls.map((call) => call.command), ["start_recording", "stop_recording"]);
+  assert.equal(h.evaluate("automationRecordingRun"), null);
+});
+
 test("empty scripts and invalid counts fail before executing any action", async () => {
   for (const script of [
     { runMode: "loop", steps: [] },

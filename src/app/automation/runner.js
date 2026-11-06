@@ -34,13 +34,13 @@ import {
 
 let automationRunSequence = 0;
 
-// 允许结束快捷键及时中断等待或定时录制
+// 按单调时钟计算截止时间，避免后台定时器延迟累积，并允许快捷键中断。
 async function cancellableAutomationWait(ms, run) {
-  let remain = Math.max(0, Number(ms) || 0);
-  while (remain > 0 && !run.cancelled) {
-    const chunk = Math.min(50, remain);
-    await sleep(chunk);
-    remain -= chunk;
+  const deadline = performance.now() + Math.max(0, Number(ms) || 0);
+  while (!run.cancelled) {
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) break;
+    await sleep(Math.min(50, remaining));
   }
 }
 

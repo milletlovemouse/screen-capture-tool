@@ -121,6 +121,7 @@ export function harness(isMac = true) {
     shortcutText: (value) => shortcutText(value, isMac),
     setTimeout,
     clearTimeout,
+    performance,
     register: async (key, callback) => {
       if (shortcuts.has(key)) throw new Error("快捷键已占用");
       shortcuts.set(key, callback);
